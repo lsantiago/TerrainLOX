@@ -4,8 +4,32 @@
 body {
   margin: 0;
   font-family: system-ui, -apple-system, sans-serif;
+  overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 #root {
-  height: 100vh;
+  height: 100dvh;
+}
+
+/* Fix Leaflet controls on mobile */
+.leaflet-control-zoom {
+  border: none !important;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15) !important;
+}
+
+.leaflet-control-zoom a {
+  width: 36px !important;
+  height: 36px !important;
+  line-height: 36px !important;
+  font-size: 18px !important;
+}
+
+/* Bottom sheet drag handle */
+.drag-handle {
+  width: 36px;
+  height: 4px;
+  border-radius: 2px;
+  background: #d1d5db;
+  margin: 0 auto;
 }

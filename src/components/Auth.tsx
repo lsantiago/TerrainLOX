@@ -55,20 +55,20 @@ export default function Auth({ onSignIn, onSignUp }: AuthProps) {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-emerald-50 to-sky-100">
-      <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full mx-4">
-        <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-emerald-600 rounded-xl flex items-center justify-center mx-auto mb-4">
-            <svg className="w-8 h-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <div className="min-h-[100dvh] flex items-center justify-center bg-gradient-to-br from-emerald-50 to-sky-100 px-4">
+      <div className="bg-white rounded-2xl shadow-xl p-6 sm:p-8 max-w-md w-full">
+        <div className="text-center mb-6">
+          <div className="w-14 h-14 sm:w-16 sm:h-16 bg-emerald-600 rounded-xl flex items-center justify-center mx-auto mb-3">
+            <svg className="w-7 h-7 sm:w-8 sm:h-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                 d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
             </svg>
           </div>
-          <h1 className="text-2xl font-bold text-gray-800">Terrain LOX</h1>
-          <p className="text-gray-500 mt-2">Visualizador de Predios Urbanos</p>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-800">Terrain LOX</h1>
+          <p className="text-gray-500 mt-1 text-sm">Visualizador de Predios Urbanos</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-3">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Correo electronico</label>
             <input
@@ -76,7 +76,8 @@ export default function Auth({ onSignIn, onSignUp }: AuthProps) {
               value={email}
               onChange={e => setEmail(e.target.value)}
               placeholder="correo@ejemplo.com"
-              className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+              autoComplete="email"
+              className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
             />
           </div>
 
@@ -87,7 +88,8 @@ export default function Auth({ onSignIn, onSignUp }: AuthProps) {
               value={password}
               onChange={e => setPassword(e.target.value)}
               placeholder="Minimo 6 caracteres"
-              className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+              autoComplete={isRegister ? 'new-password' : 'current-password'}
+              className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
             />
           </div>
 
@@ -99,7 +101,8 @@ export default function Auth({ onSignIn, onSignUp }: AuthProps) {
                 value={confirmPassword}
                 onChange={e => setConfirmPassword(e.target.value)}
                 placeholder="Repite tu contrasena"
-                className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                autoComplete="new-password"
+                className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
               />
             </div>
           )}
@@ -115,7 +118,7 @@ export default function Auth({ onSignIn, onSignUp }: AuthProps) {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-300 text-white font-medium rounded-xl px-6 py-2.5 text-sm transition-colors cursor-pointer"
+            className="w-full bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 disabled:bg-gray-300 text-white font-medium rounded-xl px-6 py-3 text-sm transition-colors cursor-pointer"
           >
             {loading
               ? 'Cargando...'
@@ -126,10 +129,10 @@ export default function Auth({ onSignIn, onSignUp }: AuthProps) {
           </button>
         </form>
 
-        <div className="mt-6 text-center">
+        <div className="mt-5 text-center">
           <button
             onClick={() => { setIsRegister(!isRegister); setError(''); setSuccess('') }}
-            className="text-sm text-emerald-600 hover:text-emerald-700 cursor-pointer"
+            className="text-sm text-emerald-600 hover:text-emerald-700 active:text-emerald-800 cursor-pointer py-1"
           >
             {isRegister
               ? 'Ya tengo cuenta. Iniciar sesion'

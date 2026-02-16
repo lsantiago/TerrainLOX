@@ -161,8 +161,8 @@ function ZoomMessage() {
   if (zoom >= MIN_ZOOM_POLYGONS) return null
 
   return (
-    <div className="absolute top-3 left-1/2 -translate-x-1/2 z-[1000] bg-white/90 backdrop-blur-sm shadow-lg rounded-lg px-4 py-2 pointer-events-none">
-      <p className="text-xs text-gray-600 font-medium">
+    <div className="absolute top-3 left-1/2 -translate-x-1/2 z-[1000] bg-white/90 backdrop-blur-sm shadow-lg rounded-lg px-3 py-1.5 pointer-events-none max-w-[90%]">
+      <p className="text-[11px] sm:text-xs text-gray-600 font-medium text-center">
         Acercate mas para ver los predios (zoom {zoom}/{MIN_ZOOM_POLYGONS})
       </p>
     </div>
@@ -182,7 +182,7 @@ export default function MapView({
       center={[-3.99, -79.20]}
       zoom={14}
       className="h-full w-full"
-      zoomControl={false}
+      zoomControl={true}
       preferCanvas={true}
     >
       <TileLayer
