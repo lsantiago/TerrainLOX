@@ -18,6 +18,9 @@ interface MapProps {
 
 function BoundsWatcher({ onBoundsChange }: { onBoundsChange: MapProps['onBoundsChange'] }) {
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const callbackRef = useRef(onBoundsChange)
+  callbackRef.current = onBoundsChange
+
   const map = useMapEvents({
     moveend: () => fire(),
     zoomend: () => fire(),
@@ -27,13 +30,13 @@ function BoundsWatcher({ onBoundsChange }: { onBoundsChange: MapProps['onBoundsC
     if (debounceRef.current) clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(() => {
       const bounds = map.getBounds()
-      onBoundsChange(
+      callbackRef.current(
         bounds.getWest(), bounds.getSouth(),
         bounds.getEast(), bounds.getNorth(),
         map.getZoom()
       )
     }, 300)
-  }, [map, onBoundsChange])
+  }, [map])
 
   useEffect(() => {
     fire()

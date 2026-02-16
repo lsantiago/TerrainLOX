@@ -75,10 +75,9 @@ export default function App() {
     <div className="fixed inset-0 flex flex-col overflow-hidden">
       <Header user={user} onSignOut={signOut} />
 
-      {/* Main area: map always full, sidebar overlays on desktop or panels on mobile */}
       <div className="flex-1 relative overflow-hidden">
-        {/* Desktop sidebar */}
-        <div className="hidden sm:flex absolute inset-0">
+        {/* Desktop sidebar - overlays left side */}
+        <div className="hidden sm:block absolute inset-y-0 left-0 z-10">
           <Sidebar
             selectedPredio={selectedPredio}
             isFavorito={selectedPredio ? isFavorito(selectedPredio.id) : false}
@@ -92,20 +91,10 @@ export default function App() {
             onRemoveFavorito={handleRemoveFavorito}
             onClearSelection={handleClearSelection}
           />
-          <div className="flex-1">
-            <MapView
-              geojson={geojson}
-              selectedPredioId={selectedPredio?.id ?? null}
-              onSelectPredio={handleSelectPredio}
-              onBoundsChange={handleBoundsChange}
-              flyTo={flyTo}
-              highlightFeature={highlightFeature}
-            />
-          </div>
         </div>
 
-        {/* Mobile: full screen map + floating panels */}
-        <div className="sm:hidden absolute inset-0">
+        {/* Single map instance - full area, offset on desktop for sidebar */}
+        <div className="absolute inset-0 sm:left-80">
           <MapView
             geojson={geojson}
             selectedPredioId={selectedPredio?.id ?? null}
@@ -114,6 +103,10 @@ export default function App() {
             flyTo={flyTo}
             highlightFeature={highlightFeature}
           />
+        </div>
+
+        {/* Mobile floating panels */}
+        <div className="sm:hidden">
           <Sidebar
             selectedPredio={selectedPredio}
             isFavorito={selectedPredio ? isFavorito(selectedPredio.id) : false}
