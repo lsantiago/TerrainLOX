@@ -61,7 +61,7 @@ export default function App() {
 
   if (authLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="fixed inset-0 flex items-center justify-center bg-gray-50">
         <div className="animate-spin w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full" />
       </div>
     )
@@ -72,23 +72,40 @@ export default function App() {
   }
 
   return (
-    <div className="h-screen flex flex-col">
+    <div className="fixed inset-0 flex flex-col overflow-hidden">
       <Header user={user} onSignOut={signOut} />
-      <div className="flex-1 flex relative overflow-hidden">
-        <Sidebar
-          selectedPredio={selectedPredio}
-          isFavorito={selectedPredio ? isFavorito(selectedPredio.id) : false}
-          onToggleFavorito={handleToggleFavorito}
-          onSearchClave={handleSearchClave}
-          onSearchLocation={handleSearchLocation}
-          searchLoading={prediosLoading}
-          favoritos={favoritos}
-          favoritosLoading={favLoading}
-          onLocateFavorito={handleLocateFavorito}
-          onRemoveFavorito={handleRemoveFavorito}
-          onClearSelection={handleClearSelection}
-        />
-        <div className="flex-1 relative">
+
+      {/* Main area: map always full, sidebar overlays on desktop or panels on mobile */}
+      <div className="flex-1 relative overflow-hidden">
+        {/* Desktop sidebar */}
+        <div className="hidden sm:flex absolute inset-0">
+          <Sidebar
+            selectedPredio={selectedPredio}
+            isFavorito={selectedPredio ? isFavorito(selectedPredio.id) : false}
+            onToggleFavorito={handleToggleFavorito}
+            onSearchClave={handleSearchClave}
+            onSearchLocation={handleSearchLocation}
+            searchLoading={prediosLoading}
+            favoritos={favoritos}
+            favoritosLoading={favLoading}
+            onLocateFavorito={handleLocateFavorito}
+            onRemoveFavorito={handleRemoveFavorito}
+            onClearSelection={handleClearSelection}
+          />
+          <div className="flex-1">
+            <MapView
+              geojson={geojson}
+              selectedPredioId={selectedPredio?.id ?? null}
+              onSelectPredio={handleSelectPredio}
+              onBoundsChange={handleBoundsChange}
+              flyTo={flyTo}
+              highlightFeature={highlightFeature}
+            />
+          </div>
+        </div>
+
+        {/* Mobile: full screen map + floating panels */}
+        <div className="sm:hidden absolute inset-0">
           <MapView
             geojson={geojson}
             selectedPredioId={selectedPredio?.id ?? null}
@@ -96,6 +113,20 @@ export default function App() {
             onBoundsChange={handleBoundsChange}
             flyTo={flyTo}
             highlightFeature={highlightFeature}
+          />
+          <Sidebar
+            selectedPredio={selectedPredio}
+            isFavorito={selectedPredio ? isFavorito(selectedPredio.id) : false}
+            onToggleFavorito={handleToggleFavorito}
+            onSearchClave={handleSearchClave}
+            onSearchLocation={handleSearchLocation}
+            searchLoading={prediosLoading}
+            favoritos={favoritos}
+            favoritosLoading={favLoading}
+            onLocateFavorito={handleLocateFavorito}
+            onRemoveFavorito={handleRemoveFavorito}
+            onClearSelection={handleClearSelection}
+            mobile
           />
         </div>
       </div>
