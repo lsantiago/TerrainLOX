@@ -7,6 +7,7 @@ import type { Favorito } from '../hooks/useFavoritos'
 
 type Panel = 'search' | 'favoritos' | 'info' | null
 
+
 interface SidebarProps {
   selectedPredio: PredioProperties | null
   isFavorito: boolean
@@ -18,6 +19,7 @@ interface SidebarProps {
   favoritosLoading: boolean
   onLocateFavorito: (predioId: number) => void
   onRemoveFavorito: (predioId: number) => void
+  onEditFavorito: (fav: Favorito) => void
   onClearSelection: () => void
   mobile?: boolean
 }
@@ -33,6 +35,7 @@ export default function Sidebar({
   favoritosLoading,
   onLocateFavorito,
   onRemoveFavorito,
+  onEditFavorito,
   onClearSelection,
   mobile,
 }: SidebarProps) {
@@ -132,6 +135,7 @@ export default function Sidebar({
                     loading={favoritosLoading}
                     onLocate={(id) => { onLocateFavorito(id); setPanel(null) }}
                     onRemove={onRemoveFavorito}
+                    onEdit={onEditFavorito}
                   />
                 )}
               </div>
@@ -197,6 +201,7 @@ export default function Sidebar({
             loading={favoritosLoading}
             onLocate={onLocateFavorito}
             onRemove={onRemoveFavorito}
+            onEdit={onEditFavorito}
           />
         )}
       </div>

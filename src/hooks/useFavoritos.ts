@@ -1,7 +1,59 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 
-export interface Favorito {
+export type FavoritoEstado = 'Consultado' | 'En negociacion' | 'Oferta realizada' | 'Descartado'
+
+export const SERVICIOS_OPTIONS = [
+  'Agua potable',
+  'Energia electrica',
+  'Alcantarillado',
+  'Internet disponible',
+  'Calle pavimentada',
+  'Acera construida',
+  'Alumbrado publico',
+] as const
+
+export const CARACTERISTICAS_OPTIONS = [
+  'Terreno plano',
+  'Esquinero',
+  'Forma regular',
+  'Documentos en regla',
+] as const
+
+export const ESTADO_OPTIONS: FavoritoEstado[] = [
+  'Consultado',
+  'En negociacion',
+  'Oferta realizada',
+  'Descartado',
+]
+
+export interface FavoritoMetadata {
+  precio: number | null
+  telefono: string
+  contacto: string
+  email_contacto: string
+  notas: string
+  servicios: string[]
+  caracteristicas: string[]
+  estado: FavoritoEstado
+  calificacion: number | null
+  ultima_visita: string
+}
+
+export const EMPTY_METADATA: FavoritoMetadata = {
+  precio: null,
+  telefono: '',
+  contacto: '',
+  email_contacto: '',
+  notas: '',
+  servicios: [],
+  caracteristicas: [],
+  estado: 'Consultado',
+  calificacion: null,
+  ultima_visita: '',
+}
+
+export interface Favorito extends FavoritoMetadata {
   id: string
   predio_id: number
   created_at: string
@@ -27,6 +79,16 @@ export function useFavoritos(userId: string | undefined) {
         id,
         predio_id,
         created_at,
+        precio,
+        telefono,
+        contacto,
+        email_contacto,
+        notas,
+        servicios,
+        caracteristicas,
+        estado,
+        calificacion,
+        ultima_visita,
         predio_loja (
           clave_cata,
           barrio,
@@ -42,6 +104,16 @@ export function useFavoritos(userId: string | undefined) {
         id: f.id,
         predio_id: f.predio_id,
         created_at: f.created_at,
+        precio: f.precio ?? null,
+        telefono: f.telefono ?? '',
+        contacto: f.contacto ?? '',
+        email_contacto: f.email_contacto ?? '',
+        notas: f.notas ?? '',
+        servicios: f.servicios ?? [],
+        caracteristicas: f.caracteristicas ?? [],
+        estado: f.estado ?? 'Consultado',
+        calificacion: f.calificacion ?? null,
+        ultima_visita: f.ultima_visita ?? '',
         predio: f.predio_loja,
       }))
       setFavoritos(mapped)
@@ -54,10 +126,43 @@ export function useFavoritos(userId: string | undefined) {
     fetchFavoritos()
   }, [fetchFavoritos])
 
-  const addFavorito = useCallback(async (predioId: number) => {
+  const addFavorito = useCallback(async (predioId: number, metadata: FavoritoMetadata) => {
     if (!userId) return
-    await supabase.from('favoritos').insert({ user_id: userId, predio_id: predioId })
+    await supabase.from('favoritos').insert({
+      user_id: userId,
+      predio_id: predioId,
+      precio: metadata.precio,
+      telefono: metadata.telefono || null,
+      contacto: metadata.contacto || null,
+      email_contacto: metadata.email_contacto || null,
+      notas: metadata.notas || null,
+      servicios: metadata.servicios,
+      caracteristicas: metadata.caracteristicas,
+      estado: metadata.estado,
+      calificacion: metadata.calificacion,
+      ultima_visita: metadata.ultima_visita || null,
+    })
     setFavoritoIds(prev => new Set(prev).add(predioId))
+    fetchFavoritos()
+  }, [userId, fetchFavoritos])
+
+  const updateFavorito = useCallback(async (favoritoId: string, metadata: FavoritoMetadata) => {
+    if (!userId) return
+    await supabase
+      .from('favoritos')
+      .update({
+        precio: metadata.precio,
+        telefono: metadata.telefono || null,
+        contacto: metadata.contacto || null,
+        email_contacto: metadata.email_contacto || null,
+        notas: metadata.notas || null,
+        servicios: metadata.servicios,
+        caracteristicas: metadata.caracteristicas,
+        estado: metadata.estado,
+        calificacion: metadata.calificacion,
+        ultima_visita: metadata.ultima_visita || null,
+      })
+      .eq('id', favoritoId)
     fetchFavoritos()
   }, [userId, fetchFavoritos])
 
@@ -74,13 +179,5 @@ export function useFavoritos(userId: string | undefined) {
 
   const isFavorito = useCallback((predioId: number) => favoritoIds.has(predioId), [favoritoIds])
 
-  const toggleFavorito = useCallback(async (predioId: number) => {
-    if (isFavorito(predioId)) {
-      await removeFavorito(predioId)
-    } else {
-      await addFavorito(predioId)
-    }
-  }, [isFavorito, addFavorito, removeFavorito])
-
-  return { favoritos, loading, isFavorito, toggleFavorito, fetchFavoritos }
+  return { favoritos, loading, isFavorito, addFavorito, removeFavorito, updateFavorito, fetchFavoritos }
 }

@@ -1,22 +1,34 @@
 import { useState, useCallback } from 'react'
 import { useAuth } from './hooks/useAuth'
 import { usePredios } from './hooks/usePredios'
-import { useFavoritos } from './hooks/useFavoritos'
+import { useFavoritos, EMPTY_METADATA } from './hooks/useFavoritos'
 import type { PredioProperties } from './hooks/usePredios'
+import type { Favorito, FavoritoMetadata } from './hooks/useFavoritos'
 import type { Feature } from 'geojson'
 import Auth from './components/Auth'
 import Header from './components/Header'
 import Sidebar from './components/Sidebar'
 import MapView from './components/Map'
+import FavoritoForm from './components/FavoritoForm'
 
 export default function App() {
   const { user, loading: authLoading, signIn, signUp, signOut } = useAuth()
   const { geojson, loading: prediosLoading, loadByBounds, searchByClave, getPredioById } = usePredios()
-  const { favoritos, loading: favLoading, isFavorito, toggleFavorito } = useFavoritos(user?.id)
+  const { favoritos, loading: favLoading, isFavorito, addFavorito, removeFavorito, updateFavorito } = useFavoritos(user?.id)
 
   const [selectedPredio, setSelectedPredio] = useState<PredioProperties | null>(null)
   const [flyTo, setFlyTo] = useState<{ lat: number; lng: number; zoom?: number } | null>(null)
   const [highlightFeature, setHighlightFeature] = useState<Feature | null>(null)
+
+  // Favorito form modal state
+  const [favoritoModal, setFavoritoModal] = useState<{
+    mode: 'add' | 'edit'
+    predioId: number
+    predioLabel: string
+    favoritoId?: string
+    initialValues: FavoritoMetadata
+  } | null>(null)
+  const [favoritoSaving, setFavoritoSaving] = useState(false)
 
   const handleBoundsChange = useCallback((minLng: number, minLat: number, maxLng: number, maxLat: number, zoom: number) => {
     loadByBounds(minLng, minLat, maxLng, maxLat, zoom)
@@ -46,14 +58,55 @@ export default function App() {
   }, [getPredioById])
 
   const handleRemoveFavorito = useCallback(async (predioId: number) => {
-    await toggleFavorito(predioId)
-  }, [toggleFavorito])
+    await removeFavorito(predioId)
+  }, [removeFavorito])
 
   const handleToggleFavorito = useCallback(() => {
-    if (selectedPredio) {
-      toggleFavorito(selectedPredio.id)
+    if (!selectedPredio) return
+    if (isFavorito(selectedPredio.id)) {
+      removeFavorito(selectedPredio.id)
+    } else {
+      setFavoritoModal({
+        mode: 'add',
+        predioId: selectedPredio.id,
+        predioLabel: selectedPredio.clave_cata || `Predio #${selectedPredio.id}`,
+        initialValues: EMPTY_METADATA,
+      })
     }
-  }, [selectedPredio, toggleFavorito])
+  }, [selectedPredio, isFavorito, removeFavorito])
+
+  const handleEditFavorito = useCallback((fav: Favorito) => {
+    setFavoritoModal({
+      mode: 'edit',
+      predioId: fav.predio_id,
+      predioLabel: fav.predio?.clave_cata || `Predio #${fav.predio_id}`,
+      favoritoId: fav.id,
+      initialValues: {
+        precio: fav.precio,
+        telefono: fav.telefono,
+        contacto: fav.contacto,
+        email_contacto: fav.email_contacto,
+        notas: fav.notas,
+        servicios: fav.servicios,
+        caracteristicas: fav.caracteristicas,
+        estado: fav.estado,
+        calificacion: fav.calificacion,
+        ultima_visita: fav.ultima_visita,
+      },
+    })
+  }, [])
+
+  const handleFavoritoSave = useCallback(async (metadata: FavoritoMetadata) => {
+    if (!favoritoModal) return
+    setFavoritoSaving(true)
+    if (favoritoModal.mode === 'add') {
+      await addFavorito(favoritoModal.predioId, metadata)
+    } else if (favoritoModal.favoritoId) {
+      await updateFavorito(favoritoModal.favoritoId, metadata)
+    }
+    setFavoritoSaving(false)
+    setFavoritoModal(null)
+  }, [favoritoModal, addFavorito, updateFavorito])
 
   const handleClearSelection = useCallback(() => {
     setSelectedPredio(null)
@@ -89,6 +142,7 @@ export default function App() {
             favoritosLoading={favLoading}
             onLocateFavorito={handleLocateFavorito}
             onRemoveFavorito={handleRemoveFavorito}
+            onEditFavorito={handleEditFavorito}
             onClearSelection={handleClearSelection}
           />
         </div>
@@ -118,11 +172,24 @@ export default function App() {
             favoritosLoading={favLoading}
             onLocateFavorito={handleLocateFavorito}
             onRemoveFavorito={handleRemoveFavorito}
+            onEditFavorito={handleEditFavorito}
             onClearSelection={handleClearSelection}
             mobile
           />
         </div>
       </div>
+
+      {/* Favorito form modal */}
+      {favoritoModal && (
+        <FavoritoForm
+          mode={favoritoModal.mode}
+          predioLabel={favoritoModal.predioLabel}
+          initialValues={favoritoModal.initialValues}
+          saving={favoritoSaving}
+          onSave={handleFavoritoSave}
+          onCancel={() => setFavoritoModal(null)}
+        />
+      )}
     </div>
   )
 }
