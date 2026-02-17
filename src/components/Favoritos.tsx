@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { createPortal } from 'react-dom'
 import type { Favorito } from '../hooks/useFavoritos'
 
 interface FavoritosProps {
@@ -290,8 +291,9 @@ export default function Favoritos({ favoritos, loading, onLocate, onRemove, onEd
         })}
       </div>
 
-      {showCompare && compareItems.length >= 2 && (
-        <CompareModal items={compareItems} onClose={() => setShowCompare(false)} />
+      {showCompare && compareItems.length >= 2 && createPortal(
+        <CompareModal items={compareItems} onClose={() => setShowCompare(false)} />,
+        document.body
       )}
     </div>
   )
