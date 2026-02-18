@@ -55,9 +55,9 @@ export default function Sidebar({
   if (mobile) {
     return (
       <>
-        {/* Floating action buttons - always visible */}
+        {/* Floating action buttons - fixed to viewport */}
         {!panel && (
-          <div className="absolute bottom-6 left-4 right-4 z-[1000] flex gap-3">
+          <div className="fixed bottom-6 left-4 right-4 z-[1000] flex gap-3">
             <button
               onClick={() => setPanel('search')}
               className="flex-1 bg-white shadow-lg rounded-xl px-4 py-3.5 flex items-center gap-2 active:bg-gray-50"
@@ -84,23 +84,23 @@ export default function Sidebar({
           </div>
         )}
 
-        {/* Modal panel from bottom */}
+        {/* Modal panel from bottom - fixed to viewport */}
         {panel && (
           <>
             {/* Backdrop */}
             <div
-              className="absolute inset-0 z-[1001] bg-black/30"
+              className="fixed inset-0 z-[1001] bg-black/30"
               onClick={closePanel}
             />
 
             {/* Panel */}
-            <div className="absolute bottom-0 left-0 right-0 z-[1002] bg-white rounded-t-2xl shadow-2xl max-h-[80dvh] flex flex-col animate-slide-up">
+            <div className="fixed bottom-0 left-0 right-0 z-[1002] bg-white rounded-t-2xl shadow-2xl max-h-[80dvh] flex flex-col animate-slide-up">
               {/* Handle + close */}
-              <div className="flex items-center justify-between px-4 pt-3 pb-2 border-b border-gray-100">
+              <div className="flex items-center justify-between px-4 pt-3 pb-2 border-b border-gray-100 shrink-0">
                 <h2 className="font-semibold text-gray-800 text-sm">
                   {panel === 'search' && 'Buscar Predio'}
                   {panel === 'favoritos' && 'Mis Favoritos'}
-                  {panel === 'info' && 'Informacion del Predio'}
+                  {panel === 'info' && 'Información del Predio'}
                 </h2>
                 <button
                   onClick={closePanel}
@@ -113,7 +113,7 @@ export default function Sidebar({
               </div>
 
               {/* Content */}
-              <div className="flex-1 overflow-y-auto overscroll-contain">
+              <div className="flex-1 overflow-y-auto overscroll-contain min-h-0">
                 {panel === 'search' && (
                   <SearchBar
                     onSearchClave={(clave) => { onSearchClave(clave); setPanel(null) }}

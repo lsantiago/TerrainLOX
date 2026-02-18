@@ -166,7 +166,7 @@ function ZoomMessage() {
   return (
     <div className="absolute top-3 left-1/2 -translate-x-1/2 z-[1000] bg-white/90 backdrop-blur-sm shadow-lg rounded-lg px-3 py-1.5 pointer-events-none max-w-[90%]">
       <p className="text-[11px] sm:text-xs text-gray-600 font-medium text-center">
-        Acercate mas para ver los predios (zoom {zoom}/{MIN_ZOOM_POLYGONS})
+        Acércate más para ver los predios (zoom {zoom}/{MIN_ZOOM_POLYGONS})
       </p>
     </div>
   )

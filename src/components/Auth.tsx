@@ -21,17 +21,17 @@ export default function Auth({ onSignIn, onSignUp }: AuthProps) {
     setSuccess('')
 
     if (!email || !password) {
-      setError('Ingresa tu correo y contrasena.')
+      setError('Ingresa tu correo y contraseña.')
       return
     }
 
     if (isRegister && password !== confirmPassword) {
-      setError('Las contrasenas no coinciden.')
+      setError('Las contraseñas no coinciden.')
       return
     }
 
     if (password.length < 6) {
-      setError('La contrasena debe tener al menos 6 caracteres.')
+      setError('La contraseña debe tener al menos 6 caracteres.')
       return
     }
 
@@ -70,7 +70,7 @@ export default function Auth({ onSignIn, onSignUp }: AuthProps) {
 
         <form onSubmit={handleSubmit} className="space-y-3">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Correo electronico</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Correo electrónico</label>
             <input
               type="email"
               value={email}
@@ -82,12 +82,12 @@ export default function Auth({ onSignIn, onSignUp }: AuthProps) {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Contrasena</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Contraseña</label>
             <input
               type="password"
               value={password}
               onChange={e => setPassword(e.target.value)}
-              placeholder="Minimo 6 caracteres"
+              placeholder="Mínimo 6 caracteres"
               autoComplete={isRegister ? 'new-password' : 'current-password'}
               className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
             />
@@ -95,12 +95,12 @@ export default function Auth({ onSignIn, onSignUp }: AuthProps) {
 
           {isRegister && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Confirmar contrasena</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Confirmar contraseña</label>
               <input
                 type="password"
                 value={confirmPassword}
                 onChange={e => setConfirmPassword(e.target.value)}
-                placeholder="Repite tu contrasena"
+                placeholder="Repite tu contraseña"
                 autoComplete="new-password"
                 className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
               />
@@ -124,7 +124,7 @@ export default function Auth({ onSignIn, onSignUp }: AuthProps) {
               ? 'Cargando...'
               : isRegister
                 ? 'Crear cuenta'
-                : 'Iniciar sesion'
+                : 'Iniciar sesión'
             }
           </button>
         </form>
@@ -135,7 +135,7 @@ export default function Auth({ onSignIn, onSignUp }: AuthProps) {
             className="text-sm text-emerald-600 hover:text-emerald-700 active:text-emerald-800 cursor-pointer py-1"
           >
             {isRegister
-              ? 'Ya tengo cuenta. Iniciar sesion'
+              ? 'Ya tengo cuenta. Iniciar sesión'
               : 'No tengo cuenta. Registrarme'
             }
           </button>

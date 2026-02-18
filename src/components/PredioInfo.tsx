@@ -9,19 +9,19 @@ interface PredioInfoProps {
 
 const fieldLabels: Record<string, string> = {
   clave_cata: 'Clave Catastral',
-  prov_cant: 'Provincia/Canton',
+  prov_cant: 'Provincia/Cantón',
   parroquia: 'Parroquia',
   barrio: 'Barrio',
   zona: 'Zona',
   sector: 'Sector',
   manzana: 'Manzana',
   lote: 'Lote',
-  area_grafi: 'Area Grafica (m2)',
-  area_gim: 'Area GIM (m2)',
+  area_grafi: 'Área Gráfica (m²)',
+  area_gim: 'Área GIM (m²)',
   tipo_pred: 'Tipo de Predio',
   reg_prop: 'Registro Propiedad',
-  ocup_gim: 'Ocupacion GIM',
-  cedula: 'Cedula',
+  ocup_gim: 'Ocupación GIM',
+  cedula: 'Cédula',
   fecha: 'Fecha',
   observacio: 'Observaciones',
   ante_gim: 'Antecedente GIM',
@@ -32,7 +32,7 @@ export default function PredioInfo({ predio, isFavorito, onToggleFavorito, onClo
   return (
     <div className="p-4">
       <div className="flex items-center justify-between mb-3">
-        <h2 className="font-semibold text-gray-800 text-sm">Informacion del Predio</h2>
+        <h2 className="font-semibold text-gray-800 text-sm">Información del Predio</h2>
         <button onClick={onClose} className="text-gray-400 hover:text-gray-600 cursor-pointer">
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />

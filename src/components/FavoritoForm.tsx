@@ -57,10 +57,10 @@ export default function FavoritoForm({ mode, predioLabel, initialValues, saving,
   const inputClass = 'w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent'
 
   return (
-    <div className="fixed inset-0 z-[2000] flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[2000] flex items-end sm:items-center justify-center sm:p-4">
       <div className="absolute inset-0 bg-black/40" onClick={onCancel} />
-      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90dvh] overflow-y-auto">
-        <div className="sticky top-0 bg-white border-b border-gray-100 px-5 py-3 rounded-t-2xl flex items-center justify-between">
+      <div className="relative bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-md max-h-[90dvh] flex flex-col">
+        <div className="bg-white border-b border-gray-100 px-5 py-3 rounded-t-2xl flex items-center justify-between shrink-0">
           <h2 className="font-semibold text-gray-800 text-sm">
             {mode === 'add' ? 'Agregar a Favoritos' : 'Editar Favorito'}
           </h2>
@@ -71,12 +71,12 @@ export default function FavoritoForm({ mode, predioLabel, initialValues, saving,
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-5 space-y-5">
+        <form onSubmit={handleSubmit} className="p-5 space-y-5 overflow-y-auto min-h-0">
           <p className="text-xs text-gray-500 bg-gray-50 rounded-lg px-3 py-2 font-medium">{predioLabel}</p>
 
           {/* Calificacion */}
           <div>
-            <label className="block text-xs font-semibold text-gray-700 mb-1.5">Mi Calificacion</label>
+            <label className="block text-xs font-semibold text-gray-700 mb-1.5">Mi Calificación</label>
             <StarRating value={form.calificacion} onChange={v => update({ calificacion: v })} />
           </div>
 
@@ -126,12 +126,12 @@ export default function FavoritoForm({ mode, predioLabel, initialValues, saving,
                 type="text"
                 value={form.contacto}
                 onChange={e => update({ contacto: e.target.value })}
-                placeholder="Juan Perez"
+                placeholder="Juan Pérez"
                 className={inputClass}
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-gray-700 mb-1">Telefono de contacto</label>
+              <label className="block text-xs font-semibold text-gray-700 mb-1">Teléfono de contacto</label>
               <input
                 type="tel"
                 value={form.telefono}
@@ -175,7 +175,7 @@ export default function FavoritoForm({ mode, predioLabel, initialValues, saving,
 
           {/* Caracteristicas */}
           <div>
-            <label className="block text-xs font-semibold text-gray-700 mb-1.5">Caracteristicas</label>
+            <label className="block text-xs font-semibold text-gray-700 mb-1.5">Características</label>
             <div className="flex flex-wrap gap-1.5">
               {CARACTERISTICAS_OPTIONS.map(c => (
                 <button
@@ -196,7 +196,7 @@ export default function FavoritoForm({ mode, predioLabel, initialValues, saving,
 
           {/* Ultima visita */}
           <div>
-            <label className="block text-xs font-semibold text-gray-700 mb-1">Ultima visita</label>
+            <label className="block text-xs font-semibold text-gray-700 mb-1">Última visita</label>
             <input
               type="date"
               value={form.ultima_visita}
@@ -211,7 +211,7 @@ export default function FavoritoForm({ mode, predioLabel, initialValues, saving,
             <textarea
               value={form.notas}
               onChange={e => update({ notas: e.target.value })}
-              placeholder="Escribe tus notas aqui..."
+              placeholder="Escribe tus notas aquí..."
               rows={3}
               className={`${inputClass} resize-none`}
             />

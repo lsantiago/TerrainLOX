@@ -17,7 +17,7 @@ export default function SearchBar({ onSearchClave, onSearchLocation, loading }: 
 
   const handleGPS = () => {
     if (!navigator.geolocation) {
-      setGpsError('Tu navegador no soporta geolocalizacion.')
+      setGpsError('Tu navegador no soporta geolocalización.')
       return
     }
 
@@ -34,16 +34,16 @@ export default function SearchBar({ onSearchClave, onSearchLocation, loading }: 
         setGpsLoading(false)
         switch (err.code) {
           case err.PERMISSION_DENIED:
-            setGpsError('Permiso de ubicacion denegado. Habilita el GPS en tu navegador.')
+            setGpsError('Permiso de ubicación denegado. Habilita el GPS en tu navegador.')
             break
           case err.POSITION_UNAVAILABLE:
-            setGpsError('Ubicacion no disponible.')
+            setGpsError('Ubicación no disponible.')
             break
           case err.TIMEOUT:
-            setGpsError('Tiempo de espera agotado al obtener ubicacion.')
+            setGpsError('Tiempo de espera agotado al obtener ubicación.')
             break
           default:
-            setGpsError('No se pudo obtener la ubicacion.')
+            setGpsError('No se pudo obtener la ubicación.')
         }
       },
       {
@@ -62,7 +62,7 @@ export default function SearchBar({ onSearchClave, onSearchLocation, loading }: 
     <div className="p-4">
       <h2 className="font-semibold text-gray-800 mb-3 text-sm">Buscar Predio</h2>
 
-      {/* Busqueda por clave catastral */}
+      {/* Búsqueda por clave catastral */}
       <label className="block text-xs text-gray-500 mb-1">Clave Catastral</label>
       <div className="flex gap-2 mb-4">
         <input
@@ -97,7 +97,7 @@ export default function SearchBar({ onSearchClave, onSearchLocation, loading }: 
       </div>
 
       {/* Boton GPS */}
-      <label className="block text-xs text-gray-500 mb-1">Mi Ubicacion</label>
+      <label className="block text-xs text-gray-500 mb-1">Mi Ubicación</label>
       <button
         onClick={handleGPS}
         disabled={gpsLoading}
@@ -106,7 +106,7 @@ export default function SearchBar({ onSearchClave, onSearchLocation, loading }: 
         {gpsLoading ? (
           <>
             <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-            Obteniendo ubicacion...
+            Obteniendo ubicación...
           </>
         ) : (
           <>
@@ -116,7 +116,7 @@ export default function SearchBar({ onSearchClave, onSearchLocation, loading }: 
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                 d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
             </svg>
-            Usar mi posicion GPS
+            Usar mi posición GPS
           </>
         )}
       </button>

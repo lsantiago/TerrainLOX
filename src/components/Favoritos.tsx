@@ -12,19 +12,19 @@ interface FavoritosProps {
 
 const estadoStyle: Record<string, string> = {
   'Consultado': 'bg-gray-100 text-gray-600',
-  'En negociacion': 'bg-blue-100 text-blue-700',
+  'En negociación': 'bg-blue-100 text-blue-700',
   'Oferta realizada': 'bg-amber-100 text-amber-700',
   'Descartado': 'bg-red-100 text-red-600',
 }
 
 const servicioAbrev: Record<string, string> = {
   'Agua potable': 'Agua',
-  'Energia electrica': 'Luz',
+  'Energía eléctrica': 'Luz',
   'Alcantarillado': 'Alcant.',
   'Internet disponible': 'Internet',
   'Calle pavimentada': 'Pavimento',
   'Acera construida': 'Acera',
-  'Alumbrado publico': 'Alumbrado',
+  'Alumbrado público': 'Alumbrado',
 }
 
 function MiniStars({ value }: { value: number | null }) {
@@ -42,10 +42,10 @@ function MiniStars({ value }: { value: number | null }) {
 
 function CompareModal({ items, onClose }: { items: Favorito[]; onClose: () => void }) {
   return (
-    <div className="fixed inset-0 z-[2000] flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[2000] flex items-end sm:items-center justify-center sm:p-4">
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90dvh] overflow-auto">
-        <div className="sticky top-0 bg-white border-b border-gray-100 px-5 py-3 rounded-t-2xl flex items-center justify-between">
+      <div className="relative bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-2xl max-h-[85dvh] flex flex-col">
+        <div className="bg-white border-b border-gray-100 px-5 py-3 rounded-t-2xl flex items-center justify-between shrink-0">
           <h2 className="font-semibold text-gray-800 text-sm">Comparar Favoritos ({items.length})</h2>
           <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 cursor-pointer">
             <svg className="w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -53,7 +53,7 @@ function CompareModal({ items, onClose }: { items: Favorito[]; onClose: () => vo
             </svg>
           </button>
         </div>
-        <div className="overflow-x-auto">
+        <div className="overflow-auto min-h-0 flex-1">
           <table className="w-full text-xs">
             <thead>
               <tr className="border-b border-gray-200">
@@ -88,7 +88,7 @@ function CompareModal({ items, onClose }: { items: Favorito[]; onClose: () => vo
                 })}
               </tr>
               <tr className="border-b border-gray-50">
-                <td className="px-3 py-2 text-gray-500 sticky left-0 bg-white">Calificacion</td>
+                <td className="px-3 py-2 text-gray-500 sticky left-0 bg-white">Calificación</td>
                 {items.map(f => <td key={f.id} className="px-3 py-2"><MiniStars value={f.calificacion} /></td>)}
               </tr>
               <tr className="border-b border-gray-50">
@@ -104,7 +104,7 @@ function CompareModal({ items, onClose }: { items: Favorito[]; onClose: () => vo
                 </td>)}
               </tr>
               <tr className="border-b border-gray-50">
-                <td className="px-3 py-2 text-gray-500 sticky left-0 bg-white">Caracteristicas</td>
+                <td className="px-3 py-2 text-gray-500 sticky left-0 bg-white">Características</td>
                 {items.map(f => <td key={f.id} className="px-3 py-2">
                   {f.caracteristicas.length > 0 ? f.caracteristicas.join(', ') : '-'}
                 </td>)}
@@ -114,11 +114,11 @@ function CompareModal({ items, onClose }: { items: Favorito[]; onClose: () => vo
                 {items.map(f => <td key={f.id} className="px-3 py-2">{f.contacto || '-'}</td>)}
               </tr>
               <tr className="border-b border-gray-50">
-                <td className="px-3 py-2 text-gray-500 sticky left-0 bg-white">Telefono</td>
+                <td className="px-3 py-2 text-gray-500 sticky left-0 bg-white">Teléfono</td>
                 {items.map(f => <td key={f.id} className="px-3 py-2">{f.telefono || '-'}</td>)}
               </tr>
               <tr className="border-b border-gray-50">
-                <td className="px-3 py-2 text-gray-500 sticky left-0 bg-white">Ultima visita</td>
+                <td className="px-3 py-2 text-gray-500 sticky left-0 bg-white">Última visita</td>
                 {items.map(f => <td key={f.id} className="px-3 py-2">{f.ultima_visita || '-'}</td>)}
               </tr>
               <tr>
@@ -159,7 +159,7 @@ export default function Favoritos({ favoritos, loading, onLocate, onRemove, onEd
               d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
           </svg>
           <p className="text-xs text-gray-400">No tienes predios favoritos.</p>
-          <p className="text-xs text-gray-400">Selecciona un predio en el mapa y agregalo.</p>
+          <p className="text-xs text-gray-400">Selecciona un predio en el mapa y agrégalo.</p>
         </div>
       )}
 
@@ -282,7 +282,7 @@ export default function Favoritos({ favoritos, loading, onLocate, onRemove, onEd
                     <p className="text-[11px] text-gray-500 italic truncate">"{fav.notas}"</p>
                   )}
                   {fav.ultima_visita && (
-                    <p className="text-[10px] text-gray-400">Ultima visita: {fav.ultima_visita}</p>
+                    <p className="text-[10px] text-gray-400">Última visita: {fav.ultima_visita}</p>
                   )}
                 </div>
               )}

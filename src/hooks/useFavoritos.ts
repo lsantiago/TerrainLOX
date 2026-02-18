@@ -1,16 +1,16 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 
-export type FavoritoEstado = 'Consultado' | 'En negociacion' | 'Oferta realizada' | 'Descartado'
+export type FavoritoEstado = 'Consultado' | 'En negociación' | 'Oferta realizada' | 'Descartado'
 
 export const SERVICIOS_OPTIONS = [
   'Agua potable',
-  'Energia electrica',
+  'Energía eléctrica',
   'Alcantarillado',
   'Internet disponible',
   'Calle pavimentada',
   'Acera construida',
-  'Alumbrado publico',
+  'Alumbrado público',
 ] as const
 
 export const CARACTERISTICAS_OPTIONS = [
@@ -22,7 +22,7 @@ export const CARACTERISTICAS_OPTIONS = [
 
 export const ESTADO_OPTIONS: FavoritoEstado[] = [
   'Consultado',
-  'En negociacion',
+  'En negociación',
   'Oferta realizada',
   'Descartado',
 ]
