@@ -195,10 +195,11 @@ export default function MapView({
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
         </LayersControl.BaseLayer>
-        <LayersControl.BaseLayer name="Satelite">
+        <LayersControl.BaseLayer name="Satélite">
           <TileLayer
-            attribution='&copy; Esri'
-            url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+            attribution='&copy; Google'
+            url="https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}"
+            maxZoom={20}
           />
         </LayersControl.BaseLayer>
       </LayersControl>
