@@ -1,3 +1,5 @@
+import { useState, useEffect } from 'react'
+import { supabase } from '../lib/supabase'
 import type { PredioProperties } from '../hooks/usePredios'
 
 interface PredioInfoProps {
@@ -30,6 +32,21 @@ const fieldLabels: Record<string, string> = {
 }
 
 export default function PredioInfo({ predio, isFavorito, onToggleFavorito, onOpenCalculadora, onClose }: PredioInfoProps) {
+  const [parroquiaNombre, setParroquiaNombre] = useState<string | null>(null)
+
+  useEffect(() => {
+    setParroquiaNombre(null)
+    supabase.rpc('get_parroquia_predio', { p_id: predio.id }).then(({ data }) => {
+      if (data?.parroquia) setParroquiaNombre(data.parroquia)
+    })
+  }, [predio.id])
+
+  const getDisplayValue = (key: string, value: string | number) => {
+    if (key === 'parroquia' && parroquiaNombre) return parroquiaNombre
+    if (typeof value === 'number') return value.toLocaleString('es-EC', { maximumFractionDigits: 2 })
+    return String(value)
+  }
+
   return (
     <div className="p-4">
       <div className="flex items-center justify-between mb-3">
@@ -68,13 +85,13 @@ export default function PredioInfo({ predio, isFavorito, onToggleFavorito, onOpe
 
       <div className="space-y-1">
         {Object.entries(fieldLabels).map(([key, label]) => {
-          const value = predio[key as keyof PredioProperties]
-          if (value === null || value === undefined || value === '') return null
+          const raw = predio[key as keyof PredioProperties]
+          if (raw === null || raw === undefined || raw === '') return null
           return (
             <div key={key} className="flex justify-between py-1.5 border-b border-gray-50">
               <span className="text-xs text-gray-500">{label}</span>
               <span className="text-xs font-medium text-gray-800 text-right max-w-[55%]">
-                {typeof value === 'number' ? value.toLocaleString('es-EC', { maximumFractionDigits: 2 }) : String(value)}
+                {getDisplayValue(key, raw)}
               </span>
             </div>
           )

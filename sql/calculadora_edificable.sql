@@ -123,8 +123,22 @@ RETURNS json AS $$
   FROM limites_parroquias lp;
 $$ LANGUAGE sql STABLE;
 
+-- 5) Get parroquia name for a predio by spatial intersection
+CREATE OR REPLACE FUNCTION get_parroquia_predio(p_id integer)
+RETURNS json AS $$
+  SELECT json_build_object(
+    'parroquia', lp.parroquia,
+    'subclasificacion', lp.subclasifi
+  )
+  FROM predio_loja p
+  JOIN limites_parroquias lp ON ST_Intersects(p.geom, lp.geom)
+  WHERE p.gid = p_id
+  LIMIT 1;
+$$ LANGUAGE sql STABLE;
+
 -- Grant access
 GRANT EXECUTE ON FUNCTION public.get_zonificacion_predio TO authenticated, anon;
 GRANT EXECUTE ON FUNCTION public.get_limites_barriales_geojson TO authenticated, anon;
 GRANT EXECUTE ON FUNCTION public.get_aptitud_predio TO authenticated, anon;
 GRANT EXECUTE ON FUNCTION public.get_limites_parroquias_geojson TO authenticated, anon;
+GRANT EXECUTE ON FUNCTION public.get_parroquia_predio TO authenticated, anon;
