@@ -191,6 +191,7 @@ function BarriosLayer({ visible }: { visible: boolean }) {
     const show = (fc: FeatureCollection) => {
       if (layerRef.current) map.removeLayer(layerRef.current)
       const layer = L.geoJSON(fc, {
+        interactive: false,
         style: {
           color: '#8b5cf6',
           weight: 2,
@@ -201,9 +202,9 @@ function BarriosLayer({ visible }: { visible: boolean }) {
         onEachFeature: (feature, featureLayer) => {
           if (feature.properties?.barrio) {
             featureLayer.bindTooltip(feature.properties.barrio, {
-              sticky: true,
-              className: 'text-xs',
+              permanent: true,
               direction: 'center',
+              className: 'barrio-label',
             })
           }
         },
