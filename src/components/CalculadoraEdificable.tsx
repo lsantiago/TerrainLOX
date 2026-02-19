@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useZonificacion } from '../hooks/useZonificacion'
-import type { ZonificacionData } from '../hooks/useZonificacion'
+import type { ZonificacionData, AptitudData } from '../hooks/useZonificacion'
 import { decodeCodigos } from '../data/catalogoUsos'
 
 interface CalculadoraProps {
@@ -105,6 +105,109 @@ function UsosSection({ z }: { z: ZonificacionData }) {
                 </div>
               ))}
             </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function AptitudBadge({ aptitud }: { aptitud: string }) {
+  const lower = aptitud.toLowerCase()
+  let colors = 'bg-gray-100 text-gray-700 border-gray-300'
+  let icon = ''
+  if (lower === 'apto') {
+    colors = 'bg-emerald-50 text-emerald-700 border-emerald-300'
+    icon = 'check'
+  } else if (lower.includes('medianas')) {
+    colors = 'bg-amber-50 text-amber-700 border-amber-300'
+    icon = 'warning'
+  } else if (lower.includes('extremas')) {
+    colors = 'bg-orange-50 text-orange-700 border-orange-300'
+    icon = 'warning'
+  } else if (lower.includes('no apto')) {
+    colors = 'bg-red-50 text-red-700 border-red-300'
+    icon = 'block'
+  }
+
+  return (
+    <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full border text-xs font-semibold ${colors}`}>
+      {icon === 'check' && (
+        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
+      )}
+      {icon === 'warning' && (
+        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 9v2m0 4h.01M12 3l9.5 16.5H2.5L12 3z" /></svg>
+      )}
+      {icon === 'block' && (
+        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M18.364 5.636a9 9 0 11-12.728 0 9 9 0 0112.728 0zM6.343 6.343l11.314 11.314" /></svg>
+      )}
+      {aptitud}
+    </span>
+  )
+}
+
+function AptitudSection({ apt, simple }: { apt: AptitudData; simple?: boolean }) {
+  if (!apt.aptitud) return null
+
+  const lower = apt.aptitud.toLowerCase()
+  let borderColor = 'border-gray-200'
+  if (lower === 'apto') borderColor = 'border-emerald-200'
+  else if (lower.includes('medianas')) borderColor = 'border-amber-200'
+  else if (lower.includes('extremas')) borderColor = 'border-orange-200'
+  else if (lower.includes('no apto')) borderColor = 'border-red-200'
+
+  if (simple) {
+    return (
+      <div className={`rounded-xl border ${borderColor} p-4`}>
+        <h4 className="text-xs font-semibold text-gray-700 mb-2">Aptitud Fisico-Constructiva</h4>
+        <div className="mb-3">
+          <AptitudBadge aptitud={apt.aptitud} />
+        </div>
+        {apt.amenazas && (
+          <div className="mb-2">
+            <span className="text-[10px] uppercase tracking-wider text-gray-400 font-semibold">Amenazas</span>
+            <p className="text-xs text-gray-600 mt-0.5">{apt.amenazas}</p>
+          </div>
+        )}
+        {apt.estudios && (
+          <div className="mb-2">
+            <span className="text-[10px] uppercase tracking-wider text-gray-400 font-semibold">Estudios Requeridos</span>
+            <p className="text-xs text-gray-600 mt-0.5">{apt.estudios}</p>
+          </div>
+        )}
+        {apt.observacion_1 && (
+          <div className="mb-2">
+            <span className="text-[10px] uppercase tracking-wider text-gray-400 font-semibold">Observaciones</span>
+            <p className="text-xs text-gray-600 mt-0.5">{apt.observacion_1}</p>
+          </div>
+        )}
+        {apt.observacion_2 && (
+          <p className="text-xs text-gray-600">{apt.observacion_2}</p>
+        )}
+      </div>
+    )
+  }
+
+  // Tecnico mode: table rows
+  const rows: [string, string | null][] = [
+    ['Aptitud', apt.aptitud],
+    ['Amenazas', apt.amenazas],
+    ['Estudios Requeridos', apt.estudios],
+    ['Observacion 1', apt.observacion_1],
+    ['Observacion 2', apt.observacion_2],
+  ]
+
+  return (
+    <div className="mt-1">
+      <div className="py-2 border-b border-gray-200">
+        <span className="text-xs font-semibold text-gray-700">Aptitud Fisico-Constructiva</span>
+      </div>
+      {rows.map(([label, value]) => {
+        if (!value) return null
+        return (
+          <div key={label} className="flex justify-between py-1.5 border-b border-gray-50">
+            <span className="text-xs text-gray-500">{label}</span>
+            <span className="text-xs font-medium text-gray-800 text-right max-w-[55%]">{value}</span>
           </div>
         )
       })}
@@ -247,7 +350,7 @@ function ModoTecnico({ z, area }: { z: ZonificacionData; area: number }) {
 
 export default function CalculadoraEdificable({ predioId, predioLabel, area, onClose }: CalculadoraProps) {
   const [modo, setModo] = useState<'simple' | 'tecnico'>('simple')
-  const { data, loading, error, getZonificacion } = useZonificacion()
+  const { data, aptitud, loading, error, getZonificacion } = useZonificacion()
 
   useEffect(() => {
     getZonificacion(predioId)
@@ -316,6 +419,11 @@ export default function CalculadoraEdificable({ predioId, predioLabel, area, onC
                 <ModoSimple z={data} area={area} />
               ) : (
                 <ModoTecnico z={data} area={area} />
+              )}
+              {aptitud && (
+                <div className="mt-5">
+                  <AptitudSection apt={aptitud} simple={modo === 'simple'} />
+                </div>
               )}
             </div>
           )}

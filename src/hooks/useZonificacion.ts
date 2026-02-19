@@ -28,26 +28,45 @@ export interface ZonificacionData {
   fondo: number | null
 }
 
+export interface AptitudData {
+  aptitud: string | null
+  amenazas: string | null
+  estudios: string | null
+  observacion_1: string | null
+  observacion_2: string | null
+}
+
 export function useZonificacion() {
   const [data, setData] = useState<ZonificacionData | null>(null)
+  const [aptitud, setAptitud] = useState<AptitudData | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const getZonificacion = useCallback(async (predioId: number) => {
     setLoading(true)
     setError(null)
-    const { data: result, error: err } = await supabase.rpc('get_zonificacion_predio', {
-      p_id: predioId,
-    })
-    if (err) {
-      setError(err.message)
+
+    const [zonRes, aptRes] = await Promise.all([
+      supabase.rpc('get_zonificacion_predio', { p_id: predioId }),
+      supabase.rpc('get_aptitud_predio', { p_id: predioId }),
+    ])
+
+    if (zonRes.error) {
+      setError(zonRes.error.message)
       setData(null)
     } else {
-      setData(result as ZonificacionData | null)
+      setData(zonRes.data as ZonificacionData | null)
     }
+
+    if (aptRes.error) {
+      setAptitud(null)
+    } else {
+      setAptitud(aptRes.data as AptitudData | null)
+    }
+
     setLoading(false)
-    return result as ZonificacionData | null
+    return zonRes.data as ZonificacionData | null
   }, [])
 
-  return { data, loading, error, getZonificacion }
+  return { data, aptitud, loading, error, getZonificacion }
 }

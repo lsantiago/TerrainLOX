@@ -77,6 +77,28 @@ RETURNS json AS $$
   FROM limites_barriales lb;
 $$ LANGUAGE sql STABLE;
 
+-- 3) Get aptitud fisico constructiva for a predio
+-- Strip Z dimension (3D -> 2D) first time only:
+-- ALTER TABLE public.aptitud_fisico_constructiva
+--   ALTER COLUMN geom TYPE geometry(MultiPolygon, 4326)
+--   USING ST_SetSRID(ST_Force2D(geom), 4326);
+
+CREATE OR REPLACE FUNCTION get_aptitud_predio(p_id integer)
+RETURNS json AS $$
+  SELECT json_build_object(
+    'aptitud', afc.aptitud,
+    'amenazas', afc.amenazas,
+    'estudios', afc.estudios,
+    'observacion_1', afc.observac_1,
+    'observacion_2', afc.observac_2
+  )
+  FROM predio_loja p
+  JOIN aptitud_fisico_constructiva afc ON ST_Intersects(p.geom, afc.geom)
+  WHERE p.gid = p_id
+  LIMIT 1;
+$$ LANGUAGE sql STABLE;
+
 -- Grant access
 GRANT EXECUTE ON FUNCTION public.get_zonificacion_predio TO authenticated, anon;
 GRANT EXECUTE ON FUNCTION public.get_limites_barriales_geojson TO authenticated, anon;
+GRANT EXECUTE ON FUNCTION public.get_aptitud_predio TO authenticated, anon;
