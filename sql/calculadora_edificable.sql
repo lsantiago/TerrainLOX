@@ -98,7 +98,33 @@ RETURNS json AS $$
   LIMIT 1;
 $$ LANGUAGE sql STABLE;
 
+-- 4) Get limites_parroquias as GeoJSON FeatureCollection
+-- Strip Z/M dimension and fix SRID first time only:
+-- ALTER TABLE public.limites_parroquias
+--   ALTER COLUMN geom TYPE geometry(MultiPolygon, 4326)
+--   USING ST_SetSRID(ST_Force2D(geom), 4326);
+
+CREATE OR REPLACE FUNCTION get_limites_parroquias_geojson()
+RETURNS json AS $$
+  SELECT json_build_object(
+    'type', 'FeatureCollection',
+    'features', COALESCE(json_agg(
+      json_build_object(
+        'type', 'Feature',
+        'geometry', ST_AsGeoJSON(lp.geom)::json,
+        'properties', json_build_object(
+          'id', lp.gid,
+          'parroquia', lp.parroquia,
+          'subclasificacion', lp.subclasifi
+        )
+      )
+    ), '[]'::json)
+  )
+  FROM limites_parroquias lp;
+$$ LANGUAGE sql STABLE;
+
 -- Grant access
 GRANT EXECUTE ON FUNCTION public.get_zonificacion_predio TO authenticated, anon;
 GRANT EXECUTE ON FUNCTION public.get_limites_barriales_geojson TO authenticated, anon;
 GRANT EXECUTE ON FUNCTION public.get_aptitud_predio TO authenticated, anon;
+GRANT EXECUTE ON FUNCTION public.get_limites_parroquias_geojson TO authenticated, anon;

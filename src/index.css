@@ -36,17 +36,28 @@ body {
   animation: slide-up 0.25s ease-out;
 }
 
-/* Barrio name labels on map */
-.barrio-label {
+/* Boundary name labels on map */
+.barrio-label,
+.parroquia-label {
   background: none !important;
   border: none !important;
   box-shadow: none !important;
-  color: #6d28d9;
-  font-size: 11px;
   font-weight: 600;
   text-shadow: 0 0 3px #fff, 0 0 3px #fff, 0 0 3px #fff, 0 0 3px #fff;
   pointer-events: none !important;
 }
-.barrio-label::before {
+.barrio-label::before,
+.parroquia-label::before {
   display: none !important;
+}
+.barrio-label {
+  color: #6d28d9;
+  font-size: 11px;
+}
+.parroquia-label {
+  color: #0f766e;
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }

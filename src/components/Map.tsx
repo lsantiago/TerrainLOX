@@ -173,7 +173,13 @@ function ZoomMessage() {
   )
 }
 
-function BarriosLayer({ visible }: { visible: boolean }) {
+function BoundaryLayer({ visible, rpcName, labelProp, color, cssClass }: {
+  visible: boolean
+  rpcName: string
+  labelProp: string
+  color: string
+  cssClass: string
+}) {
   const map = useMap()
   const layerRef = useRef<L.GeoJSON | null>(null)
   const dataRef = useRef<FeatureCollection | null>(null)
@@ -193,18 +199,19 @@ function BarriosLayer({ visible }: { visible: boolean }) {
       const layer = L.geoJSON(fc, {
         interactive: false,
         style: {
-          color: '#8b5cf6',
+          color,
           weight: 2,
           dashArray: '6 4',
-          fillColor: '#a78bfa',
+          fillColor: color,
           fillOpacity: 0.08,
         },
         onEachFeature: (feature, featureLayer) => {
-          if (feature.properties?.barrio) {
-            featureLayer.bindTooltip(feature.properties.barrio, {
+          const label = feature.properties?.[labelProp]
+          if (label) {
+            featureLayer.bindTooltip(label, {
               permanent: true,
               direction: 'center',
-              className: 'barrio-label',
+              className: cssClass,
             })
           }
         },
@@ -219,7 +226,7 @@ function BarriosLayer({ visible }: { visible: boolean }) {
     }
 
     if (!loaded) {
-      supabase.rpc('get_limites_barriales_geojson').then(({ data }) => {
+      supabase.rpc(rpcName).then(({ data }) => {
         if (data) {
           dataRef.current = data as FeatureCollection
           show(data as FeatureCollection)
@@ -234,7 +241,7 @@ function BarriosLayer({ visible }: { visible: boolean }) {
         layerRef.current = null
       }
     }
-  }, [visible, map, loaded])
+  }, [visible, map, loaded, rpcName, labelProp, color, cssClass])
 
   return null
 }
@@ -248,6 +255,7 @@ export default function MapView({
   highlightFeature,
 }: MapProps) {
   const [showBarrios, setShowBarrios] = useState(false)
+  const [showParroquias, setShowParroquias] = useState(false)
 
   return (
     <MapContainer
@@ -273,8 +281,8 @@ export default function MapView({
         </LayersControl.BaseLayer>
       </LayersControl>
 
-      {/* Barrios toggle button */}
-      <div className="absolute top-20 right-2 z-[1000]">
+      {/* Overlay toggle buttons */}
+      <div className="absolute top-20 right-2 z-[1000] flex flex-col gap-1.5">
         <button
           onClick={() => setShowBarrios(v => !v)}
           className={`bg-white shadow-md rounded-lg px-2.5 py-1.5 text-[11px] font-medium transition-colors cursor-pointer border ${
@@ -285,6 +293,16 @@ export default function MapView({
         >
           Barrios
         </button>
+        <button
+          onClick={() => setShowParroquias(v => !v)}
+          className={`bg-white shadow-md rounded-lg px-2.5 py-1.5 text-[11px] font-medium transition-colors cursor-pointer border ${
+            showParroquias
+              ? 'border-teal-400 text-teal-700 bg-teal-50'
+              : 'border-gray-300 text-gray-600 hover:bg-gray-50'
+          }`}
+        >
+          Parroquias
+        </button>
       </div>
 
       <GeoJSONLayer
@@ -293,7 +311,8 @@ export default function MapView({
         onSelectPredio={onSelectPredio}
       />
 
-      <BarriosLayer visible={showBarrios} />
+      <BoundaryLayer visible={showBarrios} rpcName="get_limites_barriales_geojson" labelProp="barrio" color="#8b5cf6" cssClass="barrio-label" />
+      <BoundaryLayer visible={showParroquias} rpcName="get_limites_parroquias_geojson" labelProp="parroquia" color="#0d9488" cssClass="parroquia-label" />
       <ZoomMessage />
       <BoundsWatcher onBoundsChange={onBoundsChange} />
       <FlyToHandler flyTo={flyTo} />
