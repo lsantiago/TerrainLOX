@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useZonificacion } from '../hooks/useZonificacion'
 import type { ZonificacionData } from '../hooks/useZonificacion'
+import { decodeCodigos } from '../data/catalogoUsos'
 
 interface CalculadoraProps {
   predioId: number
@@ -79,22 +80,31 @@ function UsosSection({ z }: { z: ZonificacionData }) {
   ] as const
 
   const colorMap = {
-    emerald: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-    blue: 'bg-blue-50 text-blue-700 border-blue-200',
-    amber: 'bg-amber-50 text-amber-700 border-amber-200',
-    red: 'bg-red-50 text-red-700 border-red-200',
+    emerald: { container: 'border-emerald-200', badge: 'bg-emerald-100 text-emerald-700', desc: 'text-emerald-600' },
+    blue: { container: 'border-blue-200', badge: 'bg-blue-100 text-blue-700', desc: 'text-blue-600' },
+    amber: { container: 'border-amber-200', badge: 'bg-amber-100 text-amber-700', desc: 'text-amber-600' },
+    red: { container: 'border-red-200', badge: 'bg-red-100 text-red-700', desc: 'text-red-600' },
   }
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-3">
       {usos.map(u => {
         if (!u.value) return null
+        const decoded = decodeCodigos(u.value)
+        const colors = colorMap[u.color]
         return (
           <div key={u.label}>
             <span className="text-[10px] uppercase tracking-wider text-gray-400 font-semibold">{u.label}</span>
-            <p className={`text-xs mt-0.5 px-2 py-1.5 rounded-lg border ${colorMap[u.color]}`}>
-              {u.value}
-            </p>
+            <div className={`mt-1 rounded-lg border ${colors.container} divide-y divide-inherit`}>
+              {decoded.map(({ codigo, descripcion }) => (
+                <div key={codigo} className="flex items-start gap-2 px-2.5 py-1.5">
+                  <span className={`shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded ${colors.badge}`}>
+                    {codigo}
+                  </span>
+                  <span className={`text-xs ${colors.desc}`}>{descripcion}</span>
+                </div>
+              ))}
+            </div>
           </div>
         )
       })}
@@ -189,11 +199,14 @@ function ModoTecnico({ z, area }: { z: ZonificacionData; area: number }) {
     ['Tratamiento', z.tratamiento],
     ['Densidad Bruta', z.densidad_bruta],
     ['Densidad Neta', z.densidad_neta],
-    ['Uso General', z.uso_general],
-    ['Uso Principal', z.uso_principal],
-    ['Uso Complementario', z.uso_complementario],
-    ['Uso Restringido', z.uso_restringido],
-    ['Uso Prohibido', z.uso_prohibido],
+  ]
+
+  const usosRows = [
+    { label: 'Uso General', value: z.uso_general },
+    { label: 'Uso Principal', value: z.uso_principal },
+    { label: 'Uso Complementario', value: z.uso_complementario },
+    { label: 'Uso Restringido', value: z.uso_restringido },
+    { label: 'Uso Prohibido', value: z.uso_prohibido },
   ]
 
   return (
@@ -206,6 +219,25 @@ function ModoTecnico({ z, area }: { z: ZonificacionData; area: number }) {
             <span className="text-xs font-medium text-gray-800 text-right max-w-[55%]">
               {typeof value === 'number' ? fmt(value) : value}
             </span>
+          </div>
+        )
+      })}
+
+      {/* Usos decoded */}
+      {usosRows.map(u => {
+        if (!u.value) return null
+        const decoded = decodeCodigos(u.value)
+        return (
+          <div key={u.label} className="py-1.5 border-b border-gray-50">
+            <span className="text-xs text-gray-500">{u.label}</span>
+            <div className="mt-1 space-y-0.5">
+              {decoded.map(({ codigo, descripcion }) => (
+                <div key={codigo} className="flex items-start gap-1.5 text-xs">
+                  <span className="shrink-0 font-mono text-gray-400">{codigo}</span>
+                  <span className="font-medium text-gray-800">{descripcion}</span>
+                </div>
+              ))}
+            </div>
           </div>
         )
       })}
