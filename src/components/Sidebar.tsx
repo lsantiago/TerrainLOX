@@ -20,6 +20,7 @@ interface SidebarProps {
   onLocateFavorito: (predioId: number) => void
   onRemoveFavorito: (predioId: number) => void
   onEditFavorito: (fav: Favorito) => void
+  onOpenCalculadora: () => void
   onClearSelection: () => void
   mobile?: boolean
 }
@@ -36,6 +37,7 @@ export default function Sidebar({
   onLocateFavorito,
   onRemoveFavorito,
   onEditFavorito,
+  onOpenCalculadora,
   onClearSelection,
   mobile,
 }: SidebarProps) {
@@ -126,6 +128,7 @@ export default function Sidebar({
                     predio={selectedPredio}
                     isFavorito={isFavorito}
                     onToggleFavorito={onToggleFavorito}
+                    onOpenCalculadora={onOpenCalculadora}
                     onClose={closePanel}
                   />
                 )}
@@ -192,6 +195,7 @@ export default function Sidebar({
             predio={selectedPredio}
             isFavorito={isFavorito}
             onToggleFavorito={onToggleFavorito}
+            onOpenCalculadora={onOpenCalculadora}
             onClose={() => { onClearSelection(); setPanel('search') }}
           />
         )}

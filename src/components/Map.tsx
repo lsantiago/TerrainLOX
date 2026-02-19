@@ -3,6 +3,7 @@ import { MapContainer, TileLayer, useMap, useMapEvents, LayersControl } from 're
 import L from 'leaflet'
 import type { FeatureCollection, Feature } from 'geojson'
 import type { PredioProperties } from '../hooks/usePredios'
+import { supabase } from '../lib/supabase'
 
 const MIN_ZOOM_POLYGONS = 16
 const canvasRenderer = L.canvas({ padding: 0.5 })
@@ -172,6 +173,71 @@ function ZoomMessage() {
   )
 }
 
+function BarriosLayer({ visible }: { visible: boolean }) {
+  const map = useMap()
+  const layerRef = useRef<L.GeoJSON | null>(null)
+  const dataRef = useRef<FeatureCollection | null>(null)
+  const [loaded, setLoaded] = useState(false)
+
+  useEffect(() => {
+    if (!visible) {
+      if (layerRef.current) {
+        map.removeLayer(layerRef.current)
+        layerRef.current = null
+      }
+      return
+    }
+
+    const show = (fc: FeatureCollection) => {
+      if (layerRef.current) map.removeLayer(layerRef.current)
+      const layer = L.geoJSON(fc, {
+        style: {
+          color: '#8b5cf6',
+          weight: 2,
+          dashArray: '6 4',
+          fillColor: '#a78bfa',
+          fillOpacity: 0.08,
+        },
+        onEachFeature: (feature, featureLayer) => {
+          if (feature.properties?.barrio) {
+            featureLayer.bindTooltip(feature.properties.barrio, {
+              sticky: true,
+              className: 'text-xs',
+              direction: 'center',
+            })
+          }
+        },
+      } as L.GeoJSONOptions)
+      layer.addTo(map)
+      layerRef.current = layer
+    }
+
+    if (dataRef.current) {
+      show(dataRef.current)
+      return
+    }
+
+    if (!loaded) {
+      supabase.rpc('get_limites_barriales_geojson').then(({ data }) => {
+        if (data) {
+          dataRef.current = data as FeatureCollection
+          show(data as FeatureCollection)
+        }
+        setLoaded(true)
+      })
+    }
+
+    return () => {
+      if (layerRef.current) {
+        map.removeLayer(layerRef.current)
+        layerRef.current = null
+      }
+    }
+  }, [visible, map, loaded])
+
+  return null
+}
+
 export default function MapView({
   geojson,
   selectedPredioId,
@@ -180,6 +246,8 @@ export default function MapView({
   flyTo,
   highlightFeature,
 }: MapProps) {
+  const [showBarrios, setShowBarrios] = useState(false)
+
   return (
     <MapContainer
       center={[-3.99, -79.20]}
@@ -195,7 +263,7 @@ export default function MapView({
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
         </LayersControl.BaseLayer>
-        <LayersControl.BaseLayer name="Satélite">
+        <LayersControl.BaseLayer name="Satelite">
           <TileLayer
             attribution='&copy; Google'
             url="https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}"
@@ -204,12 +272,27 @@ export default function MapView({
         </LayersControl.BaseLayer>
       </LayersControl>
 
+      {/* Barrios toggle button */}
+      <div className="absolute top-20 right-2 z-[1000]">
+        <button
+          onClick={() => setShowBarrios(v => !v)}
+          className={`bg-white shadow-md rounded-lg px-2.5 py-1.5 text-[11px] font-medium transition-colors cursor-pointer border ${
+            showBarrios
+              ? 'border-violet-400 text-violet-700 bg-violet-50'
+              : 'border-gray-300 text-gray-600 hover:bg-gray-50'
+          }`}
+        >
+          Barrios
+        </button>
+      </div>
+
       <GeoJSONLayer
         geojson={geojson}
         selectedPredioId={selectedPredioId}
         onSelectPredio={onSelectPredio}
       />
 
+      <BarriosLayer visible={showBarrios} />
       <ZoomMessage />
       <BoundsWatcher onBoundsChange={onBoundsChange} />
       <FlyToHandler flyTo={flyTo} />

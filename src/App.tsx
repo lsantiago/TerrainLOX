@@ -10,6 +10,7 @@ import Header from './components/Header'
 import Sidebar from './components/Sidebar'
 import MapView from './components/Map'
 import FavoritoForm from './components/FavoritoForm'
+import CalculadoraEdificable from './components/CalculadoraEdificable'
 
 export default function App() {
   const { user, loading: authLoading, signIn, signUp, signOut } = useAuth()
@@ -29,6 +30,13 @@ export default function App() {
     initialValues: FavoritoMetadata
   } | null>(null)
   const [favoritoSaving, setFavoritoSaving] = useState(false)
+
+  // Calculadora modal state
+  const [calculadoraModal, setCalculadoraModal] = useState<{
+    predioId: number
+    predioLabel: string
+    area: number
+  } | null>(null)
 
   const handleBoundsChange = useCallback((minLng: number, minLat: number, maxLng: number, maxLat: number, zoom: number) => {
     loadByBounds(minLng, minLat, maxLng, maxLat, zoom)
@@ -112,6 +120,15 @@ export default function App() {
     setSelectedPredio(null)
   }, [])
 
+  const handleOpenCalculadora = useCallback(() => {
+    if (!selectedPredio) return
+    setCalculadoraModal({
+      predioId: selectedPredio.id,
+      predioLabel: selectedPredio.clave_cata || `Predio #${selectedPredio.id}`,
+      area: selectedPredio.area_grafi || selectedPredio.area_gim || 0,
+    })
+  }, [selectedPredio])
+
   if (authLoading) {
     return (
       <div className="fixed inset-0 flex items-center justify-center bg-gray-50">
@@ -143,6 +160,7 @@ export default function App() {
             onLocateFavorito={handleLocateFavorito}
             onRemoveFavorito={handleRemoveFavorito}
             onEditFavorito={handleEditFavorito}
+            onOpenCalculadora={handleOpenCalculadora}
             onClearSelection={handleClearSelection}
           />
         </div>
@@ -173,6 +191,7 @@ export default function App() {
             onLocateFavorito={handleLocateFavorito}
             onRemoveFavorito={handleRemoveFavorito}
             onEditFavorito={handleEditFavorito}
+            onOpenCalculadora={handleOpenCalculadora}
             onClearSelection={handleClearSelection}
             mobile
           />
@@ -188,6 +207,16 @@ export default function App() {
           saving={favoritoSaving}
           onSave={handleFavoritoSave}
           onCancel={() => setFavoritoModal(null)}
+        />
+      )}
+
+      {/* Calculadora edificable modal */}
+      {calculadoraModal && (
+        <CalculadoraEdificable
+          predioId={calculadoraModal.predioId}
+          predioLabel={calculadoraModal.predioLabel}
+          area={calculadoraModal.area}
+          onClose={() => setCalculadoraModal(null)}
         />
       )}
     </div>
