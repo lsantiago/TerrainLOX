@@ -136,9 +136,51 @@ RETURNS json AS $$
   LIMIT 1;
 $$ LANGUAGE sql STABLE;
 
+-- 6) Fix SRID on equipamiento (SRID 0, 4D -> 4326, 2D Point)
+-- ALTER TABLE public.equipamiento
+--   ALTER COLUMN geom TYPE geometry(Point, 4326)
+--   USING ST_SetSRID(ST_Force2D(geom), 4326);
+
+-- 7) Get nearby equipment for a predio within a given distance (meters)
+CREATE OR REPLACE FUNCTION get_equipamiento_cercano(p_id integer, distancia integer DEFAULT 500)
+RETURNS json AS $$
+  SELECT COALESCE(json_agg(row_to_json(t)), '[]'::json)
+  FROM (
+    SELECT
+      e.gid AS id,
+      e.categoria,
+      e.establecim AS establecimiento,
+      e.descripcio AS descripcion,
+      e.estado,
+      e.ubicacion,
+      e.radio,
+      round(ST_Y(e.geom)::numeric, 6) AS lat,
+      round(ST_X(e.geom)::numeric, 6) AS lng,
+      round(ST_Distance(e.geom::geography, ST_Centroid(p.geom)::geography)::numeric) AS distancia
+    FROM predio_loja p
+    JOIN equipamiento e
+      ON ST_DWithin(e.geom::geography, ST_Centroid(p.geom)::geography, distancia)
+    WHERE p.gid = p_id
+    ORDER BY ST_Distance(e.geom::geography, ST_Centroid(p.geom)::geography)
+  ) t;
+$$ LANGUAGE sql STABLE;
+
+-- 8) Get predio centroid as lat/lng
+CREATE OR REPLACE FUNCTION get_predio_centroid(p_id integer)
+RETURNS json AS $$
+  SELECT json_build_object(
+    'lat', round(ST_Y(ST_Centroid(geom))::numeric, 6),
+    'lng', round(ST_X(ST_Centroid(geom))::numeric, 6)
+  )
+  FROM predio_loja
+  WHERE gid = p_id;
+$$ LANGUAGE sql STABLE;
+
 -- Grant access
 GRANT EXECUTE ON FUNCTION public.get_zonificacion_predio TO authenticated, anon;
 GRANT EXECUTE ON FUNCTION public.get_limites_barriales_geojson TO authenticated, anon;
 GRANT EXECUTE ON FUNCTION public.get_aptitud_predio TO authenticated, anon;
 GRANT EXECUTE ON FUNCTION public.get_limites_parroquias_geojson TO authenticated, anon;
 GRANT EXECUTE ON FUNCTION public.get_parroquia_predio TO authenticated, anon;
+GRANT EXECUTE ON FUNCTION public.get_equipamiento_cercano TO authenticated, anon;
+GRANT EXECUTE ON FUNCTION public.get_predio_centroid TO authenticated, anon;

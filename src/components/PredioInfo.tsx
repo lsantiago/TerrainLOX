@@ -1,12 +1,15 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import type { PredioProperties } from '../hooks/usePredios'
+import EntornoPredio from './EntornoPredio'
+import type { EntornoData } from './EntornoPredio'
 
 interface PredioInfoProps {
   predio: PredioProperties
   isFavorito: boolean
   onToggleFavorito: () => void
   onOpenCalculadora: () => void
+  onEntornoChange: (data: EntornoData | null) => void
   onClose: () => void
 }
 
@@ -31,15 +34,18 @@ const fieldLabels: Record<string, string> = {
   clave_rura: 'Clave Rural',
 }
 
-export default function PredioInfo({ predio, isFavorito, onToggleFavorito, onOpenCalculadora, onClose }: PredioInfoProps) {
+export default function PredioInfo({ predio, isFavorito, onToggleFavorito, onOpenCalculadora, onEntornoChange, onClose }: PredioInfoProps) {
   const [parroquiaNombre, setParroquiaNombre] = useState<string | null>(null)
+  const [showEntorno, setShowEntorno] = useState(false)
 
   useEffect(() => {
     setParroquiaNombre(null)
+    setShowEntorno(false)
+    onEntornoChange(null)
     supabase.rpc('get_parroquia_predio', { p_id: predio.id }).then(({ data }) => {
       if (data?.parroquia) setParroquiaNombre(data.parroquia)
     })
-  }, [predio.id])
+  }, [predio.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const getDisplayValue = (key: string, value: string | number) => {
     if (key === 'parroquia' && parroquiaNombre) return parroquiaNombre
@@ -82,6 +88,37 @@ export default function PredioInfo({ predio, isFavorito, onToggleFavorito, onOpe
         </svg>
         Ver Potencial Edificable
       </button>
+
+      {/* Entorno del Predio — accordion */}
+      <div className="mb-3 rounded-lg border border-gray-200 overflow-hidden">
+        <button
+          onClick={() => {
+            const next = !showEntorno
+            setShowEntorno(next)
+            if (!next) onEntornoChange(null)
+          }}
+          className="w-full flex items-center justify-between px-3 py-2.5 bg-gray-50 hover:bg-gray-100 transition-colors cursor-pointer"
+        >
+          <span className="flex items-center gap-2 text-xs font-semibold text-gray-700">
+            <svg className="w-4 h-4 text-teal-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+            Ver Entorno del Predio
+          </span>
+          <svg
+            className={`w-3.5 h-3.5 text-gray-400 transition-transform ${showEntorno ? 'rotate-180' : ''}`}
+            fill="none" viewBox="0 0 24 24" stroke="currentColor"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+        {showEntorno && (
+          <div className="px-3 py-3 border-t border-gray-200">
+            <EntornoPredio predioId={predio.id} onDataChange={onEntornoChange} />
+          </div>
+        )}
+      </div>
 
       <div className="space-y-1">
         {Object.entries(fieldLabels).map(([key, label]) => {

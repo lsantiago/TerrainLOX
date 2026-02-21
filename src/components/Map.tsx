@@ -4,6 +4,8 @@ import L from 'leaflet'
 import type { FeatureCollection, Feature } from 'geojson'
 import type { PredioProperties } from '../hooks/usePredios'
 import { supabase } from '../lib/supabase'
+import type { EntornoData } from './EntornoPredio'
+import { CATEGORIA_MARKER_COLORS } from './EntornoPredio'
 
 const MIN_ZOOM_POLYGONS = 16
 const canvasRenderer = L.canvas({ padding: 0.5 })
@@ -15,6 +17,7 @@ interface MapProps {
   onBoundsChange: (minLng: number, minLat: number, maxLng: number, maxLat: number, zoom: number) => void
   flyTo: { lat: number; lng: number; zoom?: number } | null
   highlightFeature: Feature | null
+  entornoData?: EntornoData | null
 }
 
 function BoundsWatcher({ onBoundsChange }: { onBoundsChange: MapProps['onBoundsChange'] }) {
@@ -246,6 +249,62 @@ function BoundaryLayer({ visible, rpcName, labelProp, color, cssClass }: {
   return null
 }
 
+function EntornoLayer({ data }: { data: EntornoData | null }) {
+  const map = useMap()
+  const layerGroupRef = useRef<L.LayerGroup | null>(null)
+
+  useEffect(() => {
+    if (layerGroupRef.current) {
+      map.removeLayer(layerGroupRef.current)
+      layerGroupRef.current = null
+    }
+
+    if (!data || !data.centroid) return
+
+    const group = L.layerGroup()
+
+    // Buffer circle
+    L.circle([data.centroid.lat, data.centroid.lng], {
+      radius: data.distancia,
+      color: '#10b981',
+      weight: 2,
+      dashArray: '8 4',
+      fillColor: '#10b981',
+      fillOpacity: 0.06,
+      interactive: false,
+    }).addTo(group)
+
+    // Equipment markers
+    data.equipamientos.forEach(eq => {
+      const color = CATEGORIA_MARKER_COLORS[eq.categoria] || '#6b7280'
+      L.circleMarker([eq.lat, eq.lng], {
+        radius: 6,
+        color: '#fff',
+        weight: 1.5,
+        fillColor: color,
+        fillOpacity: 0.9,
+      })
+        .bindTooltip(
+          `<strong>${eq.descripcion}</strong><br/><span style="color:#666">${eq.categoria} · ${eq.distancia}m</span>`,
+          { sticky: true, className: 'text-xs' }
+        )
+        .addTo(group)
+    })
+
+    group.addTo(map)
+    layerGroupRef.current = group
+
+    return () => {
+      if (layerGroupRef.current) {
+        map.removeLayer(layerGroupRef.current)
+        layerGroupRef.current = null
+      }
+    }
+  }, [data, map])
+
+  return null
+}
+
 export default function MapView({
   geojson,
   selectedPredioId,
@@ -253,6 +312,7 @@ export default function MapView({
   onBoundsChange,
   flyTo,
   highlightFeature,
+  entornoData,
 }: MapProps) {
   const [showBarrios, setShowBarrios] = useState(false)
   const [showParroquias, setShowParroquias] = useState(false)
@@ -324,6 +384,7 @@ export default function MapView({
       <BoundsWatcher onBoundsChange={onBoundsChange} />
       <FlyToHandler flyTo={flyTo} />
       <HighlightLayer feature={highlightFeature} onSelect={onSelectPredio} />
+      <EntornoLayer data={entornoData ?? null} />
     </MapContainer>
   )
 }

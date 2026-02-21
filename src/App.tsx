@@ -11,6 +11,7 @@ import Sidebar from './components/Sidebar'
 import MapView from './components/Map'
 import FavoritoForm from './components/FavoritoForm'
 import CalculadoraEdificable from './components/CalculadoraEdificable'
+import type { EntornoData } from './components/EntornoPredio'
 
 export default function App() {
   const { user, loading: authLoading, signIn, signUp, signOut } = useAuth()
@@ -37,6 +38,9 @@ export default function App() {
     predioLabel: string
     area: number
   } | null>(null)
+
+  // Entorno data for map visualization
+  const [entornoData, setEntornoData] = useState<EntornoData | null>(null)
 
   const handleBoundsChange = useCallback((minLng: number, minLat: number, maxLng: number, maxLat: number, zoom: number) => {
     loadByBounds(minLng, minLat, maxLng, maxLat, zoom)
@@ -119,6 +123,7 @@ export default function App() {
 
   const handleClearSelection = useCallback(() => {
     setSelectedPredio(null)
+    setEntornoData(null)
   }, [])
 
   const handleOpenCalculadora = useCallback(() => {
@@ -129,6 +134,10 @@ export default function App() {
       area: selectedPredio.area_grafi || selectedPredio.area_gim || 0,
     })
   }, [selectedPredio])
+
+  const handleEntornoChange = useCallback((data: EntornoData | null) => {
+    setEntornoData(data)
+  }, [])
 
   if (authLoading) {
     return (
@@ -162,6 +171,7 @@ export default function App() {
             onRemoveFavorito={handleRemoveFavorito}
             onEditFavorito={handleEditFavorito}
             onOpenCalculadora={handleOpenCalculadora}
+            onEntornoChange={handleEntornoChange}
             onClearSelection={handleClearSelection}
           />
         </div>
@@ -175,6 +185,7 @@ export default function App() {
             onBoundsChange={handleBoundsChange}
             flyTo={flyTo}
             highlightFeature={highlightFeature}
+            entornoData={entornoData}
           />
         </div>
 
@@ -193,6 +204,7 @@ export default function App() {
             onRemoveFavorito={handleRemoveFavorito}
             onEditFavorito={handleEditFavorito}
             onOpenCalculadora={handleOpenCalculadora}
+            onEntornoChange={handleEntornoChange}
             onClearSelection={handleClearSelection}
             mobile
           />

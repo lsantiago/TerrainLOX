@@ -4,6 +4,7 @@ import PredioInfo from './PredioInfo'
 import Favoritos from './Favoritos'
 import type { PredioProperties } from '../hooks/usePredios'
 import type { Favorito } from '../hooks/useFavoritos'
+import type { EntornoData } from './EntornoPredio'
 
 type Panel = 'search' | 'favoritos' | 'info' | null
 
@@ -21,6 +22,7 @@ interface SidebarProps {
   onRemoveFavorito: (predioId: number) => void
   onEditFavorito: (fav: Favorito) => void
   onOpenCalculadora: () => void
+  onEntornoChange: (data: EntornoData | null) => void
   onClearSelection: () => void
   mobile?: boolean
 }
@@ -38,6 +40,7 @@ export default function Sidebar({
   onRemoveFavorito,
   onEditFavorito,
   onOpenCalculadora,
+  onEntornoChange,
   onClearSelection,
   mobile,
 }: SidebarProps) {
@@ -129,6 +132,7 @@ export default function Sidebar({
                     isFavorito={isFavorito}
                     onToggleFavorito={onToggleFavorito}
                     onOpenCalculadora={onOpenCalculadora}
+                    onEntornoChange={onEntornoChange}
                     onClose={closePanel}
                   />
                 )}
@@ -196,6 +200,7 @@ export default function Sidebar({
             isFavorito={isFavorito}
             onToggleFavorito={onToggleFavorito}
             onOpenCalculadora={onOpenCalculadora}
+            onEntornoChange={onEntornoChange}
             onClose={() => { onClearSelection(); setPanel('search') }}
           />
         )}

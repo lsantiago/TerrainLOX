@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react'
 import { useZonificacion } from '../hooks/useZonificacion'
 import type { ZonificacionData, AptitudData } from '../hooks/useZonificacion'
 import { decodeCodigos } from '../data/catalogoUsos'
-
 interface CalculadoraProps {
   predioId: number
   predioLabel: string
@@ -425,6 +424,7 @@ export default function CalculadoraEdificable({ predioId, predioLabel, area, onC
                   <AptitudSection apt={aptitud} simple={modo === 'simple'} />
                 </div>
               )}
+
             </div>
           )}
         </div>
