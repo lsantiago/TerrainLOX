@@ -38,6 +38,7 @@ export interface FavoritoMetadata {
   estado: FavoritoEstado
   calificacion: number | null
   ultima_visita: string
+  fotos: string[]
 }
 
 export const EMPTY_METADATA: FavoritoMetadata = {
@@ -51,6 +52,7 @@ export const EMPTY_METADATA: FavoritoMetadata = {
   estado: 'Consultado',
   calificacion: null,
   ultima_visita: '',
+  fotos: [],
 }
 
 export interface Favorito extends FavoritoMetadata {
@@ -89,6 +91,7 @@ export function useFavoritos(userId: string | undefined) {
         estado,
         calificacion,
         ultima_visita,
+        fotos,
         predio_loja (
           clave_cata,
           barrio,
@@ -114,6 +117,7 @@ export function useFavoritos(userId: string | undefined) {
         estado: f.estado ?? 'Consultado',
         calificacion: f.calificacion ?? null,
         ultima_visita: f.ultima_visita ?? '',
+        fotos: f.fotos ?? [],
         predio: f.predio_loja,
       }))
       setFavoritos(mapped)
@@ -141,6 +145,7 @@ export function useFavoritos(userId: string | undefined) {
       estado: metadata.estado,
       calificacion: metadata.calificacion,
       ultima_visita: metadata.ultima_visita || null,
+      fotos: metadata.fotos,
     })
     setFavoritoIds(prev => new Set(prev).add(predioId))
     fetchFavoritos()
@@ -161,6 +166,7 @@ export function useFavoritos(userId: string | undefined) {
         estado: metadata.estado,
         calificacion: metadata.calificacion,
         ultima_visita: metadata.ultima_visita || null,
+        fotos: metadata.fotos,
       })
       .eq('id', favoritoId)
     fetchFavoritos()

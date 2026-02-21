@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
+import { supabase } from '../lib/supabase'
 import type { FavoritoMetadata, FavoritoEstado } from '../hooks/useFavoritos'
 import { SERVICIOS_OPTIONS, CARACTERISTICAS_OPTIONS, ESTADO_OPTIONS } from '../hooks/useFavoritos'
 
@@ -7,6 +8,8 @@ interface FavoritoFormProps {
   predioLabel: string
   initialValues: FavoritoMetadata
   saving: boolean
+  userId: string
+  predioId: number
   onSave: (metadata: FavoritoMetadata) => void
   onCancel: () => void
 }
@@ -32,7 +35,113 @@ function StarRating({ value, onChange }: { value: number | null; onChange: (v: n
   )
 }
 
-export default function FavoritoForm({ mode, predioLabel, initialValues, saving, onSave, onCancel }: FavoritoFormProps) {
+function PhotoUploader({ fotos, userId, predioId, onChange }: {
+  fotos: string[]
+  userId: string
+  predioId: number
+  onChange: (fotos: string[]) => void
+}) {
+  const [uploading, setUploading] = useState(false)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    if (!files || files.length === 0) return
+
+    setUploading(true)
+    const newUrls: string[] = []
+
+    for (const file of Array.from(files)) {
+      const ext = file.name.split('.').pop() || 'jpg'
+      const path = `${userId}/${predioId}/${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`
+
+      const { error } = await supabase.storage
+        .from('favorito-fotos')
+        .upload(path, file)
+
+      if (!error) {
+        const { data: urlData } = supabase.storage
+          .from('favorito-fotos')
+          .getPublicUrl(path)
+        newUrls.push(urlData.publicUrl)
+      }
+    }
+
+    if (newUrls.length > 0) {
+      onChange([...fotos, ...newUrls])
+    }
+    setUploading(false)
+    if (inputRef.current) inputRef.current.value = ''
+  }
+
+  const handleRemove = async (url: string) => {
+    // Extract path from URL
+    const match = url.match(/favorito-fotos\/(.+)$/)
+    if (match) {
+      await supabase.storage.from('favorito-fotos').remove([match[1]])
+    }
+    onChange(fotos.filter(f => f !== url))
+  }
+
+  return (
+    <div>
+      <label className="block text-xs font-semibold text-gray-700 mb-1.5">Fotos del predio</label>
+
+      {/* Photo grid */}
+      {fotos.length > 0 && (
+        <div className="grid grid-cols-3 gap-2 mb-2">
+          {fotos.map((url) => (
+            <div key={url} className="relative group aspect-square rounded-lg overflow-hidden bg-gray-100">
+              <img src={url} alt="Foto del predio" className="w-full h-full object-cover" />
+              <button
+                type="button"
+                onClick={() => handleRemove(url)}
+                className="absolute top-1 right-1 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+              >
+                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Upload button */}
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        multiple
+        onChange={handleUpload}
+        className="hidden"
+      />
+      <button
+        type="button"
+        onClick={() => inputRef.current?.click()}
+        disabled={uploading}
+        className="w-full flex items-center justify-center gap-2 py-2 rounded-lg border-2 border-dashed border-gray-300 text-gray-500 hover:border-emerald-400 hover:text-emerald-600 transition-colors cursor-pointer disabled:opacity-50"
+      >
+        {uploading ? (
+          <>
+            <div className="animate-spin w-4 h-4 border-2 border-emerald-500 border-t-transparent rounded-full" />
+            <span className="text-xs">Subiendo...</span>
+          </>
+        ) : (
+          <>
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+            <span className="text-xs">Agregar fotos</span>
+          </>
+        )}
+      </button>
+    </div>
+  )
+}
+
+export default function FavoritoForm({ mode, predioLabel, initialValues, saving, userId, predioId, onSave, onCancel }: FavoritoFormProps) {
   const [form, setForm] = useState<FavoritoMetadata>(initialValues)
 
   const update = (patch: Partial<FavoritoMetadata>) => setForm(prev => ({ ...prev, ...patch }))
@@ -151,6 +260,14 @@ export default function FavoritoForm({ mode, predioLabel, initialValues, saving,
               />
             </div>
           </div>
+
+          {/* Fotos */}
+          <PhotoUploader
+            fotos={form.fotos}
+            userId={userId}
+            predioId={predioId}
+            onChange={fotos => update({ fotos })}
+          />
 
           {/* Servicios */}
           <div>

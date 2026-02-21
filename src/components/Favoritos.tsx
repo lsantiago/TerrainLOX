@@ -133,9 +133,41 @@ function CompareModal({ items, onClose }: { items: Favorito[]; onClose: () => vo
   )
 }
 
+function PhotoGallery({ fotos, onClose }: { fotos: string[]; onClose: () => void }) {
+  const [current, setCurrent] = useState(0)
+  return (
+    <div className="fixed inset-0 z-[3000] flex items-center justify-center bg-black/80" onClick={onClose}>
+      <div className="relative max-w-[90vw] max-h-[85vh] flex flex-col items-center" onClick={e => e.stopPropagation()}>
+        <img src={fotos[current]} alt={`Foto ${current + 1}`} className="max-w-full max-h-[75vh] object-contain rounded-lg" />
+        {fotos.length > 1 && (
+          <div className="flex items-center gap-4 mt-3">
+            <button
+              onClick={() => setCurrent(p => (p - 1 + fotos.length) % fotos.length)}
+              className="w-8 h-8 flex items-center justify-center rounded-full bg-white/20 text-white hover:bg-white/30 cursor-pointer"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+            </button>
+            <span className="text-white text-xs">{current + 1} / {fotos.length}</span>
+            <button
+              onClick={() => setCurrent(p => (p + 1) % fotos.length)}
+              className="w-8 h-8 flex items-center justify-center rounded-full bg-white/20 text-white hover:bg-white/30 cursor-pointer"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+            </button>
+          </div>
+        )}
+        <button onClick={onClose} className="absolute -top-2 -right-2 w-7 h-7 flex items-center justify-center rounded-full bg-white/20 text-white hover:bg-white/30 cursor-pointer">
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+        </button>
+      </div>
+    </div>
+  )
+}
+
 export default function Favoritos({ favoritos, loading, onLocate, onRemove, onEdit }: FavoritosProps) {
   const [compareIds, setCompareIds] = useState<Set<string>>(new Set())
   const [showCompare, setShowCompare] = useState(false)
+  const [galleryFotos, setGalleryFotos] = useState<string[] | null>(null)
 
   const toggleCompare = (id: string) => {
     setCompareIds(prev => {
@@ -286,6 +318,30 @@ export default function Favoritos({ favoritos, loading, onLocate, onRemove, onEd
                   )}
                 </div>
               )}
+
+              {/* Row 7: fotos */}
+              {fav.fotos && fav.fotos.length > 0 && (
+                <div className="mt-2 ml-6">
+                  <button
+                    onClick={() => setGalleryFotos(fav.fotos)}
+                    className="flex items-center gap-2 cursor-pointer group"
+                  >
+                    <div className="flex -space-x-2">
+                      {fav.fotos.slice(0, 3).map((url, i) => (
+                        <img
+                          key={url}
+                          src={url}
+                          alt={`Foto ${i + 1}`}
+                          className="w-8 h-8 rounded-md object-cover border-2 border-white shadow-sm"
+                        />
+                      ))}
+                    </div>
+                    <span className="text-[11px] text-gray-500 group-hover:text-emerald-600 transition-colors">
+                      {fav.fotos.length} foto{fav.fotos.length !== 1 ? 's' : ''}
+                    </span>
+                  </button>
+                </div>
+              )}
             </div>
           )
         })}
@@ -293,6 +349,11 @@ export default function Favoritos({ favoritos, loading, onLocate, onRemove, onEd
 
       {showCompare && compareItems.length >= 2 && createPortal(
         <CompareModal items={compareItems} onClose={() => setShowCompare(false)} />,
+        document.body
+      )}
+
+      {galleryFotos && createPortal(
+        <PhotoGallery fotos={galleryFotos} onClose={() => setGalleryFotos(null)} />,
         document.body
       )}
     </div>

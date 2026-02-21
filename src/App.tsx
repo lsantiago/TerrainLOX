@@ -100,6 +100,7 @@ export default function App() {
         estado: fav.estado,
         calificacion: fav.calificacion,
         ultima_visita: fav.ultima_visita,
+        fotos: fav.fotos,
       },
     })
   }, [])
@@ -205,6 +206,8 @@ export default function App() {
           predioLabel={favoritoModal.predioLabel}
           initialValues={favoritoModal.initialValues}
           saving={favoritoSaving}
+          userId={user!.id}
+          predioId={favoritoModal.predioId}
           onSave={handleFavoritoSave}
           onCancel={() => setFavoritoModal(null)}
         />
