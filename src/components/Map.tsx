@@ -272,6 +272,13 @@ export default function MapView({
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
         </LayersControl.BaseLayer>
+        <LayersControl.BaseLayer name="Topografico">
+          <TileLayer
+            attribution='&copy; <a href="https://opentopomap.org">OpenTopoMap</a>'
+            url="https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png"
+            maxZoom={17}
+          />
+        </LayersControl.BaseLayer>
         <LayersControl.BaseLayer name="Satelite">
           <TileLayer
             attribution='&copy; Google'
