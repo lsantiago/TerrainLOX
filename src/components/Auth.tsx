@@ -35,12 +35,6 @@ export default function Auth({ onSignIn, onSignUp }: AuthProps) {
       return
     }
 
-    // Close mobile keyboard and wait for viewport to restore before transitioning
-    if (document.activeElement instanceof HTMLElement) {
-      document.activeElement.blur()
-    }
-    await new Promise(r => setTimeout(r, 300))
-
     setLoading(true)
 
     if (isRegister) {

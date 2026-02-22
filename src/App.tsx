@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback } from 'react'
 import { useAuth } from './hooks/useAuth'
 import { usePredios } from './hooks/usePredios'
 import { useFavoritos, EMPTY_METADATA } from './hooks/useFavoritos'
@@ -139,15 +139,6 @@ export default function App() {
   const handleEntornoChange = useCallback((data: EntornoData | null) => {
     setEntornoData(data)
   }, [])
-
-  // Force viewport recalculation after login (mobile keyboard may leave viewport stuck)
-  useEffect(() => {
-    if (user) {
-      window.scrollTo(0, 0)
-      // Trigger a resize so Leaflet and layout recalculate
-      setTimeout(() => window.dispatchEvent(new Event('resize')), 100)
-    }
-  }, [user])
 
   if (authLoading) {
     return (
