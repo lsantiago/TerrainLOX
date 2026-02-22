@@ -1,7 +1,8 @@
 @import "tailwindcss";
 @import "leaflet/dist/leaflet.css";
 
-body {
+html, body {
+  height: 100%;
   margin: 0;
   font-family: system-ui, -apple-system, sans-serif;
   overscroll-behavior: none;
@@ -9,7 +10,7 @@ body {
 }
 
 #root {
-  height: 100dvh;
+  height: 100%;
   overflow: hidden;
 }
 

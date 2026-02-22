@@ -20,11 +20,6 @@ export default function Auth({ onSignIn, onSignUp }: AuthProps) {
     setError('')
     setSuccess('')
 
-    // Close mobile keyboard before transitioning to avoid viewport stuck
-    if (document.activeElement instanceof HTMLElement) {
-      document.activeElement.blur()
-    }
-
     if (!email || !password) {
       setError('Ingresa tu correo y contraseña.')
       return
@@ -39,6 +34,12 @@ export default function Auth({ onSignIn, onSignUp }: AuthProps) {
       setError('La contraseña debe tener al menos 6 caracteres.')
       return
     }
+
+    // Close mobile keyboard and wait for viewport to restore before transitioning
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur()
+    }
+    await new Promise(r => setTimeout(r, 300))
 
     setLoading(true)
 
