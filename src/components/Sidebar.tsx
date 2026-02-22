@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import SearchBar from './SearchBar'
 import PredioInfo from './PredioInfo'
 import Favoritos from './Favoritos'
@@ -25,6 +25,104 @@ interface SidebarProps {
   onEntornoChange: (data: EntornoData | null) => void
   onClearSelection: () => void
   mobile?: boolean
+}
+
+const SWIPE_THRESHOLD = 80
+
+function MobilePanel({ panel, onClose, onMinimize, children }: {
+  panel: Panel
+  onClose: () => void
+  onMinimize: () => void
+  children: React.ReactNode
+}) {
+  const panelRef = useRef<HTMLDivElement>(null)
+  const dragRef = useRef<{ startY: number; currentY: number; dragging: boolean }>({
+    startY: 0, currentY: 0, dragging: false,
+  })
+
+  const onTouchStart = useCallback((e: React.TouchEvent) => {
+    dragRef.current = { startY: e.touches[0].clientY, currentY: e.touches[0].clientY, dragging: true }
+  }, [])
+
+  const onTouchMove = useCallback((e: React.TouchEvent) => {
+    if (!dragRef.current.dragging) return
+    const currentY = e.touches[0].clientY
+    const deltaY = currentY - dragRef.current.startY
+    dragRef.current.currentY = currentY
+    // Only allow dragging down
+    if (deltaY > 0 && panelRef.current) {
+      panelRef.current.style.transform = `translateY(${deltaY}px)`
+      panelRef.current.style.transition = 'none'
+    }
+  }, [])
+
+  const onTouchEnd = useCallback(() => {
+    if (!dragRef.current.dragging) return
+    const deltaY = dragRef.current.currentY - dragRef.current.startY
+    dragRef.current.dragging = false
+
+    if (panelRef.current) {
+      if (deltaY > SWIPE_THRESHOLD) {
+        // Animate out then minimize
+        panelRef.current.style.transition = 'transform 0.2s ease-out'
+        panelRef.current.style.transform = 'translateY(100%)'
+        setTimeout(onMinimize, 200)
+      } else {
+        // Snap back
+        panelRef.current.style.transition = 'transform 0.2s ease-out'
+        panelRef.current.style.transform = 'translateY(0)'
+      }
+    }
+  }, [onMinimize])
+
+  const title = panel === 'search' ? 'Buscar Predio'
+    : panel === 'favoritos' ? 'Mis Favoritos'
+    : 'Información del Predio'
+
+  return (
+    <>
+      {/* Backdrop */}
+      <div
+        className="fixed inset-0 z-[1001] bg-black/30"
+        onClick={onMinimize}
+      />
+
+      {/* Panel */}
+      <div
+        ref={panelRef}
+        className="fixed bottom-0 left-0 right-0 z-[1002] bg-white rounded-t-2xl shadow-2xl max-h-[80dvh] flex flex-col animate-slide-up"
+      >
+        {/* Drag handle + header */}
+        <div
+          className="shrink-0 touch-none"
+          onTouchStart={onTouchStart}
+          onTouchMove={onTouchMove}
+          onTouchEnd={onTouchEnd}
+        >
+          {/* Visual drag indicator */}
+          <div className="flex justify-center pt-2 pb-1">
+            <div className="w-10 h-1 rounded-full bg-gray-300" />
+          </div>
+          <div className="flex items-center justify-between px-4 pb-2 border-b border-gray-100">
+            <h2 className="font-semibold text-gray-800 text-sm">{title}</h2>
+            <button
+              onClick={onClose}
+              className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 active:bg-gray-200"
+            >
+              <svg className="w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto overscroll-contain min-h-0">
+          {children}
+        </div>
+      </div>
+    </>
+  )
 }
 
 export default function Sidebar({
@@ -115,63 +213,38 @@ export default function Sidebar({
 
         {/* Modal panel from bottom - fixed to viewport */}
         {panel && (
-          <>
-            {/* Backdrop */}
-            <div
-              className="fixed inset-0 z-[1001] bg-black/30"
-              onClick={closePanel}
-            />
-
-            {/* Panel */}
-            <div className="fixed bottom-0 left-0 right-0 z-[1002] bg-white rounded-t-2xl shadow-2xl max-h-[80dvh] flex flex-col animate-slide-up">
-              {/* Handle + close */}
-              <div className="flex items-center justify-between px-4 pt-3 pb-2 border-b border-gray-100 shrink-0">
-                <h2 className="font-semibold text-gray-800 text-sm">
-                  {panel === 'search' && 'Buscar Predio'}
-                  {panel === 'favoritos' && 'Mis Favoritos'}
-                  {panel === 'info' && 'Información del Predio'}
-                </h2>
-                <button
-                  onClick={panel === 'info' ? closeInfoPanel : closePanel}
-                  className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 active:bg-gray-200"
-                >
-                  <svg className="w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-
-              {/* Content */}
-              <div className="flex-1 overflow-y-auto overscroll-contain min-h-0">
-                {panel === 'search' && (
-                  <SearchBar
-                    onSearchClave={(clave) => { onSearchClave(clave); setPanel(null) }}
-                    onSearchLocation={(lat, lng, label) => { onSearchLocation(lat, lng, label); setPanel(null) }}
-                    loading={searchLoading}
-                  />
-                )}
-                {panel === 'info' && selectedPredio && (
-                  <PredioInfo
-                    predio={selectedPredio}
-                    isFavorito={isFavorito}
-                    onToggleFavorito={onToggleFavorito}
-                    onOpenCalculadora={onOpenCalculadora}
-                    onEntornoChange={onEntornoChange}
-                    onClose={closeInfoPanel}
-                  />
-                )}
-                {panel === 'favoritos' && (
-                  <Favoritos
-                    favoritos={favoritos}
-                    loading={favoritosLoading}
-                    onLocate={handleLocateMobile}
-                    onRemove={onRemoveFavorito}
-                    onEdit={onEditFavorito}
-                  />
-                )}
-              </div>
-            </div>
-          </>
+          <MobilePanel
+            panel={panel}
+            onClose={panel === 'info' ? closeInfoPanel : closePanel}
+            onMinimize={() => setPanel(null)}
+          >
+            {panel === 'search' && (
+              <SearchBar
+                onSearchClave={(clave) => { onSearchClave(clave); setPanel(null) }}
+                onSearchLocation={(lat, lng, label) => { onSearchLocation(lat, lng, label); setPanel(null) }}
+                loading={searchLoading}
+              />
+            )}
+            {panel === 'info' && selectedPredio && (
+              <PredioInfo
+                predio={selectedPredio}
+                isFavorito={isFavorito}
+                onToggleFavorito={onToggleFavorito}
+                onOpenCalculadora={onOpenCalculadora}
+                onEntornoChange={onEntornoChange}
+                onClose={closeInfoPanel}
+              />
+            )}
+            {panel === 'favoritos' && (
+              <Favoritos
+                favoritos={favoritos}
+                loading={favoritosLoading}
+                onLocate={handleLocateMobile}
+                onRemove={onRemoveFavorito}
+                onEdit={onEditFavorito}
+              />
+            )}
+          </MobilePanel>
         )}
       </>
     )
