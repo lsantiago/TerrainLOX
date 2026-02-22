@@ -284,7 +284,9 @@ function BoundaryLayer({ visible, rpcName, labelProp, cssClass }: {
   return null
 }
 
-const GEOSERVER_WMS_URL = 'http://sil.loja.gob.ec/geoserver/pugs_2023_2033/wms'
+const GEOSERVER_WMS_URL = window.location.protocol === 'https:'
+  ? '/api/wms'
+  : 'http://sil.loja.gob.ec/geoserver/pugs_2023_2033/wms'
 const WMS_LAYER_NAME = 'pugs_2023_2033:aptitud_fisico_constructiva_del_suelo_2023_2033'
 
 const APTITUD_CATEGORIES: { key: string; label: string; color: string; border: string }[] = [
