@@ -284,6 +284,78 @@ function BoundaryLayer({ visible, rpcName, labelProp, cssClass }: {
   return null
 }
 
+const GEOSERVER_WMS_URL = 'http://sil.loja.gob.ec/geoserver/pugs_2023_2033/wms'
+const WMS_LAYER_NAME = 'pugs_2023_2033:aptitud_fisico_constructiva_del_suelo_2023_2033'
+
+const APTITUD_CATEGORIES: { key: string; label: string; color: string; border: string }[] = [
+  { key: 'APTO', label: 'Apto', color: '#FFEE00', border: '#d4c500' },
+  { key: 'APTO CON MEDIANAS LIMITACIONES', label: 'Medianas limitaciones', color: '#51B7D3', border: '#3a9ab5' },
+  { key: 'APTO CON EXTREMAS LIMITACIONES', label: 'Extremas limitaciones', color: '#6F20E6', border: '#5a1abf' },
+  { key: 'NO APTO', label: 'No apto', color: '#FF0044', border: '#cc0036' },
+]
+
+function buildCqlFilter(active: Record<string, boolean>): string {
+  const activeKeys = APTITUD_CATEGORIES.filter(c => active[c.key]).map(c => `'${c.key}'`)
+  return `aptitud IN (${activeKeys.join(',')})`
+}
+
+function AptitudLayer({ visible, activeCategories }: { visible: boolean; activeCategories: Record<string, boolean> }) {
+  const map = useMap()
+  const layerRef = useRef<L.TileLayer.WMS | null>(null)
+
+  useEffect(() => {
+    const hasActive = visible && APTITUD_CATEGORIES.some(c => activeCategories[c.key])
+
+    if (!hasActive) {
+      if (layerRef.current) {
+        map.removeLayer(layerRef.current)
+        layerRef.current = null
+      }
+      return
+    }
+
+    // Ensure overlay pane exists
+    if (!map.getPane('wmsOverlay')) {
+      const pane = map.createPane('wmsOverlay')
+      pane.style.zIndex = '450'
+    }
+
+    const allActive = APTITUD_CATEGORIES.every(c => activeCategories[c.key])
+    const cqlFilter = allActive ? undefined : buildCqlFilter(activeCategories)
+
+    // Remove previous before adding new (filter changes require new layer)
+    if (layerRef.current) {
+      map.removeLayer(layerRef.current)
+    }
+
+    const wmsParams: any = {
+      layers: WMS_LAYER_NAME,
+      format: 'image/png',
+      transparent: true,
+      version: '1.1.1',
+      opacity: 0.7,
+      pane: 'wmsOverlay',
+    }
+    if (cqlFilter) {
+      wmsParams.CQL_FILTER = cqlFilter
+    }
+
+    const wmsLayer = L.tileLayer.wms(GEOSERVER_WMS_URL, wmsParams)
+
+    wmsLayer.addTo(map)
+    layerRef.current = wmsLayer
+
+    return () => {
+      if (layerRef.current) {
+        map.removeLayer(layerRef.current)
+        layerRef.current = null
+      }
+    }
+  }, [visible, activeCategories, map])
+
+  return null
+}
+
 function EntornoLayer({ data }: { data: EntornoData | null }) {
   const map = useMap()
   const layerGroupRef = useRef<L.LayerGroup | null>(null)
@@ -353,6 +425,14 @@ export default function MapView({
 }: MapProps) {
   const [showBarrios, setShowBarrios] = useState(false)
   const [showParroquias, setShowParroquias] = useState(false)
+  const [showAptitud, setShowAptitud] = useState(false)
+  const [aptitudCategories, setAptitudCategories] = useState<Record<string, boolean>>(
+    () => Object.fromEntries(APTITUD_CATEGORIES.map(c => [c.key, true]))
+  )
+
+  const toggleAptitudCategory = useCallback((key: string) => {
+    setAptitudCategories(prev => ({ ...prev, [key]: !prev[key] }))
+  }, [])
 
   return (
     <MapContainer
@@ -407,7 +487,48 @@ export default function MapView({
         >
           Parroquias
         </button>
+        <button
+          onClick={() => setShowAptitud(v => !v)}
+          className={`bg-white shadow-md rounded-lg px-2.5 py-1.5 text-[11px] font-medium transition-colors cursor-pointer border ${
+            showAptitud
+              ? 'border-emerald-400 text-emerald-700 bg-emerald-50'
+              : 'border-gray-300 text-gray-600 hover:bg-gray-50'
+          }`}
+        >
+          Aptitud
+        </button>
       </div>
+
+      {/* Aptitud legend with category toggles */}
+      {showAptitud && (
+        <div className="absolute bottom-6 right-2 z-[1000] bg-white/90 backdrop-blur-sm shadow-lg rounded-lg px-3 py-2 space-y-1.5">
+          <p className="font-semibold text-gray-700 text-[11px]">Aptitud Constructiva</p>
+          {APTITUD_CATEGORIES.map(cat => (
+            <label key={cat.key} className="flex items-center gap-2 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={aptitudCategories[cat.key]}
+                onChange={() => toggleAptitudCategory(cat.key)}
+                className="sr-only"
+              />
+              <span
+                className="w-3.5 h-3.5 rounded-sm shrink-0 border-2 flex items-center justify-center transition-colors"
+                style={{
+                  backgroundColor: aptitudCategories[cat.key] ? cat.color : 'transparent',
+                  borderColor: cat.border,
+                }}
+              >
+                {aptitudCategories[cat.key] && (
+                  <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                  </svg>
+                )}
+              </span>
+              <span className="text-[11px] text-gray-600">{cat.label}</span>
+            </label>
+          ))}
+        </div>
+      )}
 
       <GeoJSONLayer
         geojson={geojson}
@@ -415,6 +536,7 @@ export default function MapView({
         onSelectPredio={onSelectPredio}
       />
 
+      <AptitudLayer visible={showAptitud} activeCategories={aptitudCategories} />
       <BoundaryLayer visible={showBarrios} rpcName="get_limites_barriales_geojson" labelProp="barrio" cssClass="barrio-label" />
       <BoundaryLayer visible={showParroquias} rpcName="get_limites_parroquias_geojson" labelProp="parroquia" cssClass="parroquia-label" />
       <ZoomMessage />
