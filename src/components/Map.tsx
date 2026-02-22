@@ -486,8 +486,8 @@ export default function MapView({
         </LayersControl.BaseLayer>
       </LayersControl>
 
-      {/* Overlay toggle buttons */}
-      <div className="absolute top-20 right-2 z-[1000] flex flex-col gap-1.5">
+      {/* Overlay toggle buttons — below LayersControl */}
+      <div className="absolute top-28 sm:top-20 right-2 z-[999] flex flex-col gap-1.5">
         <button
           onClick={() => setShowBarrios(v => !v)}
           className={`bg-white shadow-md rounded-lg px-2.5 py-1.5 text-[11px] font-medium transition-colors cursor-pointer border ${
@@ -522,7 +522,7 @@ export default function MapView({
 
       {/* Aptitud legend with category toggles */}
       {showAptitud && (
-        <div className="absolute bottom-6 right-2 z-[1000] bg-white/90 backdrop-blur-sm shadow-lg rounded-lg px-3 py-2 space-y-1.5">
+        <div className="absolute bottom-20 sm:bottom-6 right-2 z-[1000] bg-white/90 backdrop-blur-sm shadow-lg rounded-lg px-3 py-2 space-y-1.5">
           <p className="font-semibold text-gray-700 text-[11px]">Aptitud Constructiva</p>
           {APTITUD_CATEGORIES.map(cat => (
             <label key={cat.key} className="flex items-center gap-2 cursor-pointer select-none">
