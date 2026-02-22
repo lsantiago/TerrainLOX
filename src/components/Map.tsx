@@ -370,27 +370,48 @@ function EntornoLayer({ data }: { data: EntornoData | null }) {
 
     const group = L.layerGroup()
 
-    // Buffer circle
+    // Buffer circle — solid fill to highlight the analysis area
     L.circle([data.centroid.lat, data.centroid.lng], {
       radius: data.distancia,
-      color: '#10b981',
-      weight: 2,
-      dashArray: '8 4',
-      fillColor: '#10b981',
-      fillOpacity: 0.06,
+      color: '#0d9488',
+      weight: 2.5,
+      fillColor: '#ccfbf1',
+      fillOpacity: 0.25,
       interactive: false,
       renderer: canvasRenderer,
     }).addTo(group)
 
-    // Equipment markers — canvas renderer + tooltips on hover
+    // Inner glow ring for emphasis
+    L.circle([data.centroid.lat, data.centroid.lng], {
+      radius: data.distancia * 0.02,
+      color: '#0d9488',
+      weight: 0,
+      fillColor: '#0d9488',
+      fillOpacity: 0.5,
+      interactive: false,
+      renderer: canvasRenderer,
+    }).addTo(group)
+
+    // Equipment markers — larger, with shadow ring for visibility
     data.equipamientos.forEach(eq => {
       const color = CATEGORIA_MARKER_COLORS[eq.categoria] || '#6b7280'
+      // Outer shadow ring
       L.circleMarker([eq.lat, eq.lng], {
-        radius: 6,
+        radius: 10,
+        color: 'transparent',
+        weight: 0,
+        fillColor: '#000',
+        fillOpacity: 0.15,
+        interactive: false,
+        renderer: canvasRenderer,
+      }).addTo(group)
+      // Main marker
+      L.circleMarker([eq.lat, eq.lng], {
+        radius: 7,
         color: '#fff',
-        weight: 1.5,
+        weight: 2,
         fillColor: color,
-        fillOpacity: 0.9,
+        fillOpacity: 1,
         renderer: canvasRenderer,
       })
         .bindTooltip(
