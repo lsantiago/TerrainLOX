@@ -55,7 +55,7 @@ export default function Auth({ onSignIn, onSignUp }: AuthProps) {
   }
 
   return (
-    <div className="min-h-[100dvh] flex items-center justify-center bg-gradient-to-br from-emerald-50 to-sky-100 px-4">
+    <div className="fixed inset-0 flex items-center justify-center bg-gradient-to-br from-emerald-50 to-sky-100 px-4 overflow-auto">
       <div className="bg-white rounded-2xl shadow-xl p-6 sm:p-8 max-w-md w-full">
         <div className="text-center mb-6">
           <div className="w-14 h-14 sm:w-16 sm:h-16 bg-emerald-600 rounded-xl flex items-center justify-center mx-auto mb-3">
