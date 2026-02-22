@@ -20,6 +20,11 @@ export default function Auth({ onSignIn, onSignUp }: AuthProps) {
     setError('')
     setSuccess('')
 
+    // Close mobile keyboard before transitioning to avoid viewport stuck
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur()
+    }
+
     if (!email || !password) {
       setError('Ingresa tu correo y contraseña.')
       return
