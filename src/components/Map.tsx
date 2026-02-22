@@ -176,6 +176,18 @@ function ZoomMessage() {
   )
 }
 
+// Explicitly unbind tooltips and remove all sub-layers before removing from map
+function cleanupLayer(map: L.Map, layer: L.Layer | null) {
+  if (!layer) return
+  if ('eachLayer' in layer && typeof (layer as L.LayerGroup).eachLayer === 'function') {
+    (layer as L.LayerGroup).eachLayer(sub => {
+      if ('unbindTooltip' in sub) (sub as L.Layer & { unbindTooltip: () => void }).unbindTooltip()
+      if ('unbindPopup' in sub) (sub as L.Layer & { unbindPopup: () => void }).unbindPopup()
+    })
+  }
+  map.removeLayer(layer)
+}
+
 function BoundaryLayer({ visible, rpcName, labelProp, color, cssClass }: {
   visible: boolean
   rpcName: string
@@ -191,14 +203,16 @@ function BoundaryLayer({ visible, rpcName, labelProp, color, cssClass }: {
   useEffect(() => {
     if (!visible) {
       if (layerRef.current) {
-        map.removeLayer(layerRef.current)
+        cleanupLayer(map, layerRef.current)
         layerRef.current = null
       }
       return
     }
 
     const show = (fc: FeatureCollection) => {
-      if (layerRef.current) map.removeLayer(layerRef.current)
+      if (layerRef.current) {
+        cleanupLayer(map, layerRef.current)
+      }
       const layer = L.geoJSON(fc, {
         interactive: false,
         style: {
@@ -240,7 +254,7 @@ function BoundaryLayer({ visible, rpcName, labelProp, color, cssClass }: {
 
     return () => {
       if (layerRef.current) {
-        map.removeLayer(layerRef.current)
+        cleanupLayer(map, layerRef.current)
         layerRef.current = null
       }
     }
@@ -255,7 +269,7 @@ function EntornoLayer({ data }: { data: EntornoData | null }) {
 
   useEffect(() => {
     if (layerGroupRef.current) {
-      map.removeLayer(layerGroupRef.current)
+      cleanupLayer(map, layerGroupRef.current)
       layerGroupRef.current = null
     }
 
@@ -272,9 +286,10 @@ function EntornoLayer({ data }: { data: EntornoData | null }) {
       fillColor: '#10b981',
       fillOpacity: 0.06,
       interactive: false,
+      renderer: canvasRenderer,
     }).addTo(group)
 
-    // Equipment markers
+    // Equipment markers — canvas renderer + tooltips on hover
     data.equipamientos.forEach(eq => {
       const color = CATEGORIA_MARKER_COLORS[eq.categoria] || '#6b7280'
       L.circleMarker([eq.lat, eq.lng], {
@@ -283,6 +298,7 @@ function EntornoLayer({ data }: { data: EntornoData | null }) {
         weight: 1.5,
         fillColor: color,
         fillOpacity: 0.9,
+        renderer: canvasRenderer,
       })
         .bindTooltip(
           `<strong>${eq.descripcion}</strong><br/><span style="color:#666">${eq.categoria} · ${eq.distancia}m</span>`,
@@ -296,7 +312,7 @@ function EntornoLayer({ data }: { data: EntornoData | null }) {
 
     return () => {
       if (layerGroupRef.current) {
-        map.removeLayer(layerGroupRef.current)
+        cleanupLayer(map, layerGroupRef.current)
         layerGroupRef.current = null
       }
     }

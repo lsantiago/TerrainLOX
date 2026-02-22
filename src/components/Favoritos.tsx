@@ -168,6 +168,7 @@ export default function Favoritos({ favoritos, loading, onLocate, onRemove, onEd
   const [compareIds, setCompareIds] = useState<Set<string>>(new Set())
   const [showCompare, setShowCompare] = useState(false)
   const [galleryFotos, setGalleryFotos] = useState<string[] | null>(null)
+  const [confirmDelete, setConfirmDelete] = useState<{ predioId: number; label: string } | null>(null)
 
   const toggleCompare = (id: string) => {
     setCompareIds(prev => {
@@ -250,7 +251,7 @@ export default function Favoritos({ favoritos, loading, onLocate, onRemove, onEd
                         d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                     </svg>
                   </button>
-                  <button onClick={() => onRemove(fav.predio_id)} title="Eliminar"
+                  <button onClick={() => setConfirmDelete({ predioId: fav.predio_id, label: fav.predio?.clave_cata || `Predio #${fav.predio_id}` })} title="Eliminar"
                     className="p-1.5 rounded-md bg-red-100 text-red-600 hover:bg-red-200 transition-colors cursor-pointer">
                     <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -354,6 +355,33 @@ export default function Favoritos({ favoritos, loading, onLocate, onRemove, onEd
 
       {galleryFotos && createPortal(
         <PhotoGallery fotos={galleryFotos} onClose={() => setGalleryFotos(null)} />,
+        document.body
+      )}
+
+      {confirmDelete && createPortal(
+        <div className="fixed inset-0 z-[2000] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setConfirmDelete(null)} />
+          <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-sm p-5">
+            <h3 className="text-sm font-semibold text-gray-800 mb-2">Eliminar favorito</h3>
+            <p className="text-xs text-gray-500 mb-4">
+              Se eliminara <strong>{confirmDelete.label}</strong> de tus favoritos, incluyendo notas, fotos y datos de contacto. Esta accion no se puede deshacer.
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setConfirmDelete(null)}
+                className="flex-1 py-2 text-sm font-medium text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => { onRemove(confirmDelete.predioId); setConfirmDelete(null) }}
+                className="flex-1 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg cursor-pointer transition-colors"
+              >
+                Eliminar
+              </button>
+            </div>
+          </div>
+        </div>,
         document.body
       )}
     </div>

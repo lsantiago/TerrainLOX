@@ -123,6 +123,7 @@ export default function App() {
 
   const handleClearSelection = useCallback(() => {
     setSelectedPredio(null)
+    setHighlightFeature(null)
     setEntornoData(null)
   }, [])
 
