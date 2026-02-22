@@ -188,11 +188,27 @@ function cleanupLayer(map: L.Map, layer: L.Layer | null) {
   map.removeLayer(layer)
 }
 
-function BoundaryLayer({ visible, rpcName, labelProp, color, cssClass }: {
+// Palette of distinguishable colors for boundary polygons
+const BOUNDARY_PALETTE = [
+  '#8b5cf6', '#0d9488', '#e11d48', '#2563eb', '#d97706',
+  '#7c3aed', '#059669', '#dc2626', '#4f46e5', '#ca8a04',
+  '#9333ea', '#0891b2', '#c2410c', '#1d4ed8', '#a16207',
+  '#6d28d9', '#0e7490', '#b91c1c', '#3b82f6', '#92400e',
+  '#a855f7', '#14b8a6', '#f43f5e', '#6366f1', '#eab308',
+  '#7e22ce', '#06b6d4', '#ef4444', '#818cf8', '#f59e0b',
+  '#c084fc', '#2dd4bf', '#fb7185', '#a5b4fc', '#fbbf24',
+]
+
+function hashIndex(str: string, len: number): number {
+  let h = 0
+  for (let i = 0; i < str.length; i++) h = ((h << 5) - h + str.charCodeAt(i)) | 0
+  return ((h % len) + len) % len
+}
+
+function BoundaryLayer({ visible, rpcName, labelProp, cssClass }: {
   visible: boolean
   rpcName: string
   labelProp: string
-  color: string
   cssClass: string
 }) {
   const map = useMap()
@@ -215,12 +231,17 @@ function BoundaryLayer({ visible, rpcName, labelProp, color, cssClass }: {
       }
       const layer = L.geoJSON(fc, {
         interactive: false,
-        style: {
-          color,
-          weight: 2,
-          dashArray: '6 4',
-          fillColor: color,
-          fillOpacity: 0.08,
+        renderer: canvasRenderer,
+        style: (feature) => {
+          const label = feature?.properties?.[labelProp] || ''
+          const c = BOUNDARY_PALETTE[hashIndex(label, BOUNDARY_PALETTE.length)]
+          return {
+            color: c,
+            weight: 2,
+            dashArray: '6 4',
+            fillColor: c,
+            fillOpacity: 0.12,
+          }
         },
         onEachFeature: (feature, featureLayer) => {
           const label = feature.properties?.[labelProp]
@@ -228,7 +249,7 @@ function BoundaryLayer({ visible, rpcName, labelProp, color, cssClass }: {
             featureLayer.bindTooltip(label, {
               permanent: true,
               direction: 'center',
-              className: cssClass,
+              className: `${cssClass} pointer-events-none`,
             })
           }
         },
@@ -258,7 +279,7 @@ function BoundaryLayer({ visible, rpcName, labelProp, color, cssClass }: {
         layerRef.current = null
       }
     }
-  }, [visible, map, loaded, rpcName, labelProp, color, cssClass])
+  }, [visible, map, loaded, rpcName, labelProp, cssClass])
 
   return null
 }
@@ -394,8 +415,8 @@ export default function MapView({
         onSelectPredio={onSelectPredio}
       />
 
-      <BoundaryLayer visible={showBarrios} rpcName="get_limites_barriales_geojson" labelProp="barrio" color="#8b5cf6" cssClass="barrio-label" />
-      <BoundaryLayer visible={showParroquias} rpcName="get_limites_parroquias_geojson" labelProp="parroquia" color="#0d9488" cssClass="parroquia-label" />
+      <BoundaryLayer visible={showBarrios} rpcName="get_limites_barriales_geojson" labelProp="barrio" cssClass="barrio-label" />
+      <BoundaryLayer visible={showParroquias} rpcName="get_limites_parroquias_geojson" labelProp="parroquia" cssClass="parroquia-label" />
       <ZoomMessage />
       <BoundsWatcher onBoundsChange={onBoundsChange} />
       <FlyToHandler flyTo={flyTo} />
