@@ -77,7 +77,7 @@ export default function Auth({ onSignIn, onSignUp }: AuthProps) {
               onChange={e => setEmail(e.target.value)}
               placeholder="correo@ejemplo.com"
               autoComplete="email"
-              className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+              className="w-full border border-gray-300 rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
             />
           </div>
 
@@ -89,7 +89,7 @@ export default function Auth({ onSignIn, onSignUp }: AuthProps) {
               onChange={e => setPassword(e.target.value)}
               placeholder="Mínimo 6 caracteres"
               autoComplete={isRegister ? 'new-password' : 'current-password'}
-              className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+              className="w-full border border-gray-300 rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
             />
           </div>
 
@@ -102,7 +102,7 @@ export default function Auth({ onSignIn, onSignUp }: AuthProps) {
                 onChange={e => setConfirmPassword(e.target.value)}
                 placeholder="Repite tu contraseña"
                 autoComplete="new-password"
-                className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                className="w-full border border-gray-300 rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
               />
             </div>
           )}
