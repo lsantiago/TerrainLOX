@@ -447,7 +447,7 @@ export default function MapView({
   entornoData,
 }: MapProps) {
   const [showBarrios, setShowBarrios] = useState(false)
-  const [showParroquias, setShowParroquias] = useState(false)
+  const [showParroquias, setShowParroquias] = useState(true)
   const [showAptitud, setShowAptitud] = useState(false)
   const [aptitudCategories, setAptitudCategories] = useState<Record<string, boolean>>(
     () => Object.fromEntries(APTITUD_CATEGORIES.map(c => [c.key, true]))
@@ -460,13 +460,13 @@ export default function MapView({
   return (
     <MapContainer
       center={[-3.99, -79.20]}
-      zoom={14}
+      zoom={13}
       className="h-full w-full"
       zoomControl={true}
       preferCanvas={true}
     >
       <LayersControl position="topright">
-        <LayersControl.BaseLayer checked name="Mapa">
+        <LayersControl.BaseLayer name="Mapa">
           <TileLayer
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>'
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -479,7 +479,7 @@ export default function MapView({
             maxZoom={17}
           />
         </LayersControl.BaseLayer>
-        <LayersControl.BaseLayer name="Satelite">
+        <LayersControl.BaseLayer checked name="Satelite">
           <TileLayer
             attribution='&copy; Google'
             url="https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}"
