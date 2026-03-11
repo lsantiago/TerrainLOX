@@ -4,6 +4,7 @@ import type { PredioProperties } from '../hooks/usePredios'
 import { usePredios } from '../hooks/usePredios'
 import EntornoPredio from './EntornoPredio'
 import type { EntornoData } from './EntornoPredio'
+import TopografiaModal from './TopografiaModal'
 
 interface PredioInfoProps {
   predio: PredioProperties
@@ -39,6 +40,7 @@ export default function PredioInfo({ predio, isFavorito, onToggleFavorito, onOpe
   const { getPredioById, getPendiente } = usePredios()
   const [parroquiaNombre, setParroquiaNombre] = useState<string | null>(null)
   const [showEntorno, setShowEntorno] = useState(false)
+  const [showTopografiaModal, setShowTopografiaModal] = useState(false)
   const [pendienteData, setPendienteData] = useState<{ pendiente: number, minElev: number, maxElev: number, resolucion: string } | null>(null)
   const [calcLoading, setCalcLoading] = useState(false)
 
@@ -144,6 +146,17 @@ export default function PredioInfo({ predio, isFavorito, onToggleFavorito, onOpe
         ) : (
           <p className="text-xs text-gray-500 italic">No se pudo calcular la pendiente.</p>
         )}
+        
+        {/* Nueva integración de Modal Topográfico */}
+        <button
+          onClick={() => setShowTopografiaModal(true)}
+          className="mt-3 w-full flex items-center justify-center gap-1.5 py-1.5 rounded-md text-xs font-medium bg-emerald-100 text-emerald-800 hover:bg-emerald-200 transition-colors cursor-pointer"
+        >
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 10l-2 1m0 0l-2-1m2 1v2.5M20 7l-2 1m2-1l-2-1m2 1v2.5M14 4l-2-1-2 1M4 7l2-1M4 7l2 1M4 7v2.5M12 21l-2-1m2 1l2-1m-2 1v-2.5M6 18l-2-1v-2.5M18 18l2-1v-2.5" />
+          </svg>
+           Análisis Topográfico 3D y Perfil
+        </button>
       </div>
 
       {/* 3. Entorno del Predio — accordion */}
@@ -203,6 +216,15 @@ export default function PredioInfo({ predio, isFavorito, onToggleFavorito, onOpe
         </svg>
         {isFavorito ? 'Quitar de favoritos' : 'Agregar a favoritos'}
       </button>
+
+      {/* Modales locales */}
+      {showTopografiaModal && (
+         <TopografiaModal 
+           predioId={predio.id}
+           predioLabel={predio.clave_cata || `Predio #${predio.id}`}
+           onClose={() => setShowTopografiaModal(false)}
+         />
+      )}
     </div>
   )
 }
