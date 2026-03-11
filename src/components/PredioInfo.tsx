@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import type { PredioProperties } from '../hooks/usePredios'
+import { usePredios } from '../hooks/usePredios'
 import EntornoPredio from './EntornoPredio'
 import type { EntornoData } from './EntornoPredio'
 
@@ -35,16 +36,34 @@ const fieldLabels: Record<string, string> = {
 }
 
 export default function PredioInfo({ predio, isFavorito, onToggleFavorito, onOpenCalculadora, onEntornoChange, onClose }: PredioInfoProps) {
+  const { getPredioById, getPendiente } = usePredios()
   const [parroquiaNombre, setParroquiaNombre] = useState<string | null>(null)
   const [showEntorno, setShowEntorno] = useState(false)
+  const [pendienteData, setPendienteData] = useState<{ pendiente: number, minElev: number, maxElev: number, resolucion: string } | null>(null)
+  const [calcLoading, setCalcLoading] = useState(false)
 
   useEffect(() => {
     setParroquiaNombre(null)
+    setPendienteData(null)
     setShowEntorno(false)
     onEntornoChange(null)
+    
+    // Cargar parroquia
     supabase.rpc('get_parroquia_predio', { p_id: predio.id }).then(({ data }) => {
       if (data?.parroquia) setParroquiaNombre(data.parroquia)
     })
+
+    // Calcular pendiente
+    const fetchSlope = async () => {
+      setCalcLoading(true)
+      const feature = await getPredioById(predio.id)
+      if (feature) {
+        const p = await getPendiente(feature)
+        setPendienteData(p)
+      }
+      setCalcLoading(false)
+    }
+    fetchSlope()
   }, [predio.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const getDisplayValue = (key: string, value: string | number) => {
@@ -81,7 +100,53 @@ export default function PredioInfo({ predio, isFavorito, onToggleFavorito, onOpe
         })}
       </div>
 
-      {/* 2. Entorno del Predio — accordion */}
+      {/* 2. Topografía (Pendiente) API */}
+      <div className="bg-emerald-50 rounded-lg p-3 border border-emerald-100">
+        <h3 className="text-xs font-semibold text-emerald-800 mb-2 flex items-center gap-1.5">
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+          </svg>
+          Topografía del Terreno (Satelital)
+        </h3>
+        
+        {calcLoading ? (
+          <div className="flex items-center gap-2 text-xs text-gray-500">
+            <div className="w-3 h-3 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+            Calculando elevaciones...
+          </div>
+        ) : pendienteData ? (
+          <div className="grid grid-cols-2 gap-2">
+             <div>
+               <p className="text-[10px] text-gray-500">Pendiente Aprox.</p>
+               <p className="text-sm font-semibold text-gray-800">
+                 {pendienteData.pendiente.toFixed(1)}% <span className="text-xs font-normal">({Math.round(Math.atan(pendienteData.pendiente/100) * 180/Math.PI)}°)</span>
+               </p>
+             </div>
+             <div>
+               <p className="text-[10px] text-gray-500">Desnivel</p>
+               <p className="text-xs font-medium text-gray-700">
+                 {(pendienteData.maxElev - pendienteData.minElev).toFixed(1)} m
+               </p>
+             </div>
+             <div>
+               <p className="text-[10px] text-gray-500">Elevación Máxima</p>
+               <p className="text-xs font-medium text-gray-700">
+                 {pendienteData.maxElev.toFixed(0)} msnm
+               </p>
+             </div>
+             <div>
+               <p className="text-[10px] text-gray-500">Elevación Mínima</p>
+               <p className="text-xs font-medium text-gray-700">
+                 {pendienteData.minElev.toFixed(0)} msnm
+               </p>
+             </div>
+          </div>
+        ) : (
+          <p className="text-xs text-gray-500 italic">No se pudo calcular la pendiente.</p>
+        )}
+      </div>
+
+      {/* 3. Entorno del Predio — accordion */}
       <div className="rounded-lg border border-gray-200 overflow-hidden">
         <button
           onClick={() => {
@@ -112,7 +177,7 @@ export default function PredioInfo({ predio, isFavorito, onToggleFavorito, onOpe
         )}
       </div>
 
-      {/* 3. Potencial Edificable */}
+      {/* 4. Potencial Edificable */}
       <button
         onClick={onOpenCalculadora}
         className="w-full flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-colors cursor-pointer bg-sky-50 text-sky-700 border border-sky-200 hover:bg-sky-100"
@@ -123,7 +188,7 @@ export default function PredioInfo({ predio, isFavorito, onToggleFavorito, onOpe
         Ver Potencial Edificable
       </button>
 
-      {/* 4. Favoritos — acción final de decisión */}
+      {/* 5. Favoritos — acción final de decisión */}
       <button
         onClick={onToggleFavorito}
         className={`w-full flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-colors cursor-pointer ${
