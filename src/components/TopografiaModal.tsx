@@ -23,6 +23,38 @@ export interface ProfilePoint {
 
 export type CutDirection = 'SW-NE' | 'NW-SE' | 'N-S' | 'W-E' | 'CUSTOM';
 
+const mapStyle = {
+  version: 8,
+  sources: {
+    satellite: {
+      type: 'raster',
+      tiles: ['https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}'],
+      tileSize: 256,
+      attribution: 'Google'
+    },
+    terrainSource: {
+      type: 'raster-dem',
+      tiles: ['https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png'],
+      encoding: 'terrarium',
+      tileSize: 256,
+      maxzoom: 15
+    }
+  },
+  layers: [
+    {
+      id: 'satellite-layer',
+      type: 'raster',
+      source: 'satellite',
+      minzoom: 0,
+      maxzoom: 22
+    }
+  ],
+  terrain: {
+    source: 'terrainSource',
+    exaggeration: 1.1
+  }
+};
+
 export default function TopografiaModal({ predioId, predioLabel, onClose }: TopografiaModalProps) {
   const [profile, setProfile] = useState<ProfilePoint[] | null>(null)
   const [loading, setLoading] = useState(true)
@@ -34,10 +66,12 @@ export default function TopografiaModal({ predioId, predioLabel, onClose }: Topo
   const [featureGeo, setFeatureGeo] = useState<Feature | null>(null)
   const mapRef = useRef<MapRef>(null)
   const [coordsData, setCoordsData] = useState<{coords: number[][], dists: number[]}|null>(null)
+  const [mapLoaded, setMapLoaded] = useState(false)
 
+  // Cargar geometría UNA vez
   useEffect(() => {
     let mounted = true
-    const fetchData = async () => {
+    const fetchFeature = async () => {
       try {
         setLoading(true)
         const feature = await getPredioById(predioId)
@@ -46,10 +80,28 @@ export default function TopografiaModal({ predioId, predioLabel, onClose }: Topo
           setLoading(false)
           return
         }
-        if (mounted) setFeatureGeo(feature!)
-        if (mounted) setError(null)
+        if (mounted) {
+          setFeatureGeo(feature!)
+          setError(null)
+        }
+      } catch (e: any) {
+        if (mounted) {
+           setError(e.message || "Error al cargar la geometría del predio")
+           setLoading(false)
+        }
+      }
+    }
+    fetchFeature()
+    return () => { mounted = false }
+  }, [predioId, getPredioById])
 
-        const box = bbox(feature!)
+  // Recalcular trayecto de corte si cambia la dirección o puntos personalizados
+  useEffect(() => {
+    if (!featureGeo) return;
+    
+    try {
+      setLoading(true)
+      const box = bbox(featureGeo)
         const minLng = box[0], minLat = box[1], maxLng = box[2], maxLat = box[3]
         
         let p1: number[], p2: number[];
@@ -100,15 +152,14 @@ export default function TopografiaModal({ predioId, predioLabel, onClose }: Topo
         setCoordsData({ coords, dists })
 
       } catch (e: any) {
-        if (mounted) setError(e.message || "Error al calcular topografía")
+        setError(e.message || "Error al trazar área de corte")
+        setLoading(false)
       }
-    }
-    fetchData()
-    return () => { mounted = false }
-  }, [predioId, getPredioById, cutDirection, customPoints])
+  }, [featureGeo, cutDirection, customPoints])
 
+  // Consultar elevaciones al mapa en 3D
   useEffect(() => {
-    if (!coordsData || !mapRef.current) return;
+    if (!coordsData || !mapRef.current || !mapLoaded) return;
     const map = mapRef.current.getMap();
 
     let hasBuilt = false;
@@ -145,39 +196,9 @@ export default function TopografiaModal({ predioId, predioLabel, onClose }: Topo
        clearInterval(interval);
        map.off('idle', onIdle);
     };
-  }, [coordsData]);
+  }, [coordsData, mapLoaded]);
 
-  const mapStyle = {
-    version: 8,
-    sources: {
-      satellite: {
-        type: 'raster',
-        tiles: ['https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}'],
-        tileSize: 256,
-        attribution: 'Google'
-      },
-      terrainSource: {
-        type: 'raster-dem',
-        tiles: ['https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png'],
-        encoding: 'terrarium',
-        tileSize: 256,
-        maxzoom: 15
-      }
-    },
-    layers: [
-      {
-        id: 'satellite-layer',
-        type: 'raster',
-        source: 'satellite',
-        minzoom: 0,
-        maxzoom: 22
-      }
-    ],
-    terrain: {
-      source: 'terrainSource',
-      exaggeration: 1.1
-    }
-  }
+
 
   const profileGeojsonLine = useMemo(() => {
     if(!profile || profile.length === 0) return null
@@ -192,6 +213,7 @@ export default function TopografiaModal({ predioId, predioLabel, onClose }: Topo
   }, [cutDirection, customPoints, profile])
 
   const onMapLoad = () => {
+    setMapLoaded(true);
     if (featureGeo && mapRef.current) {
       const box = bbox(featureGeo);
       mapRef.current.getMap().fitBounds(
