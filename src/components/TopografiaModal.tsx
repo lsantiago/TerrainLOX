@@ -1,10 +1,10 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
-import Map, { Source, Layer, Marker } from 'react-map-gl/maplibre'
+import Map, { Source, Layer, Marker, NavigationControl } from 'react-map-gl/maplibre'
 import type { MapRef } from 'react-map-gl/maplibre'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
-import { bbox, distance, along, lineString } from '@turf/turf'
-import type { Feature } from 'geojson'
+import { bbox, distance, along, lineString, pointGrid } from '@turf/turf'
+import type { Feature, Polygon, MultiPolygon } from 'geojson'
 import { createPortal } from 'react-dom'
 import { usePredios } from '../hooks/usePredios'
 
@@ -63,7 +63,15 @@ export default function TopografiaModal({ predioId, predioLabel, onClose }: Topo
   const [cutDirection, setCutDirection] = useState<CutDirection>('SW-NE')
   const [customPoints, setCustomPoints] = useState<[number, number][]>([])
   const { getPredioById } = usePredios()
-  const [featureGeo, setFeatureGeo] = useState<Feature | null>(null)
+  const [featureGeo, setFeatureGeo] = useState<Feature<Polygon | MultiPolygon> | null>(null)
+  
+  // Novedad: Puntos Extremos (Max y Min del polígono completo)
+  const [globalExtremes, setGlobalExtremes] = useState<{
+    max: { lng: number, lat: number, elev: number } | null,
+    min: { lng: number, lat: number, elev: number } | null,
+    loading: boolean
+  }>({ max: null, min: null, loading: false })
+
   const mapRef = useRef<MapRef>(null)
   const [coordsData, setCoordsData] = useState<{coords: number[][], dists: number[]}|null>(null)
   const [mapLoaded, setMapLoaded] = useState(false)
@@ -81,7 +89,7 @@ export default function TopografiaModal({ predioId, predioLabel, onClose }: Topo
           return
         }
         if (mounted) {
-          setFeatureGeo(feature!)
+          setFeatureGeo(feature as Feature<Polygon | MultiPolygon>)
           setError(null)
         }
       } catch (e: any) {
@@ -198,7 +206,73 @@ export default function TopografiaModal({ predioId, predioLabel, onClose }: Topo
     };
   }, [coordsData, mapLoaded]);
 
+  // Novedad: Calcular Malla (Grid) y Puntos Globales Max/Min cuando el mapa esté idle
+  useEffect(() => {
+    if (!featureGeo || !mapRef.current || !mapLoaded) return;
+    const map = mapRef.current.getMap();
 
+    const calculateExtremes = () => {
+      // 1. Crear caja delimitadora (BBox) del predio
+      const box = bbox(featureGeo);
+      
+      // 2. Crear una malla de puntos dentro del BBox (por ej. cada 5 metros o ajustado según tamaño)
+      // Usamos una cantidad razonable para la malla (ej. 10m de separación) para no congelar.
+      // Dependiendo del área, 'cellSide' ajusta. Para un lote grande, 10-15m es ideal.
+      const distDiagonal = distance([box[0], box[1]], [box[2], box[3]], { units: 'kilometers' });
+      const cellSide = Math.max(0.005, distDiagonal / 15); // Dinámico, ej. entre 5m y max div
+      
+      const grid = pointGrid(box, cellSide, { units: 'kilometers', mask: featureGeo });
+
+      if(!grid || grid.features.length === 0) return;
+
+      let highest = { lng: 0, lat: 0, elev: -Infinity };
+      let lowest  = { lng: 0, lat: 0, elev: Infinity };
+      let valid = false;
+
+      // 3. Consultar elevaciones al motor de MapLibre
+      for (const pt of grid.features) {
+        const [lng, lat] = pt.geometry.coordinates;
+        // Sólo considerar si está *estrictamente* dentro del polígono para mayor precisión, aunque mask ya ayuda.
+        // booleanPointInPolygon(pt, featureGeo) -> omitimos por redudancia de la máscara de mask.
+        const elev = map.queryTerrainElevation([lng, lat]);
+        
+        if (elev !== null) {
+          valid = true;
+          if (elev > highest.elev) highest = { lng, lat, elev };
+          if (elev < lowest.elev) lowest = { lng, lat, elev };
+        }
+      }
+
+      if (valid) {
+         setGlobalExtremes({ max: highest, min: lowest, loading: false });
+      }
+    };
+
+    // Al igual que el perfil, calculamos cuando los tiles estén cargados en memoria
+    let hasCalculatedExtremes = false;
+    const checkExtremes = () => {
+       if(!hasCalculatedExtremes && map.queryTerrainElevation([bbox(featureGeo)[0], bbox(featureGeo)[1]]) !== null) {
+          setGlobalExtremes(prev => ({ ...prev, loading: true }));
+          calculateExtremes();
+          hasCalculatedExtremes = true;
+       }
+    };
+
+    checkExtremes();
+    const extremeInterval = setInterval(checkExtremes, 1000); // Poll más distanciado
+
+    const onIdleExtremes = () => { 
+      calculateExtremes(); 
+      hasCalculatedExtremes = true; 
+    };
+    map.on('idle', onIdleExtremes);
+
+    return () => {
+      clearInterval(extremeInterval);
+      map.off('idle', onIdleExtremes);
+    };
+
+  }, [featureGeo, mapLoaded]);
 
   const profileGeojsonLine = useMemo(() => {
     if(!profile || profile.length === 0) return null
@@ -320,11 +394,38 @@ export default function TopografiaModal({ predioId, predioLabel, onClose }: Topo
                   </Marker>
                 ))}
 
+                {/* Marcadores de Máximo y Mínimo Global de todo el predio */}
+                {globalExtremes.max && (
+                  <Marker longitude={globalExtremes.max.lng} latitude={globalExtremes.max.lat} anchor="bottom">
+                    <div className="flex flex-col items-center group pointer-events-none">
+                      <div className="bg-red-500/90 backdrop-blur-sm text-white text-[10px] font-bold px-1.5 py-0.5 rounded shadow-sm opacity-80 group-hover:opacity-100 transition-opacity">
+                        Pico {globalExtremes.max.elev.toFixed(0)}m
+                      </div>
+                      <div className="w-0 h-0 border-l-[4px] border-l-transparent border-r-[4px] border-r-transparent border-t-[6px] border-red-500/90"></div>
+                      <div className="w-2.5 h-2.5 bg-red-500 border-2 border-white rounded-full shadow-sm mt-0.5"></div>
+                    </div>
+                  </Marker>
+                )}
+
+                {globalExtremes.min && (
+                  <Marker longitude={globalExtremes.min.lng} latitude={globalExtremes.min.lat} anchor="bottom">
+                    <div className="flex flex-col items-center group pointer-events-none">
+                      <div className="bg-blue-600/90 backdrop-blur-sm text-white text-[10px] font-bold px-1.5 py-0.5 rounded shadow-sm opacity-80 group-hover:opacity-100 transition-opacity">
+                        Valle {globalExtremes.min.elev.toFixed(0)}m
+                      </div>
+                      <div className="w-0 h-0 border-l-[4px] border-l-transparent border-r-[4px] border-r-transparent border-t-[6px] border-blue-600/90"></div>
+                      <div className="w-2.5 h-2.5 bg-blue-600 border-2 border-white rounded-full shadow-sm mt-0.5"></div>
+                    </div>
+                  </Marker>
+                )}
+
                 {hoverPoint && (
                   <Marker longitude={hoverPoint.lng} latitude={hoverPoint.lat} anchor="center" pitchAlignment="map">
                     <div className="w-5 h-5 bg-blue-500 border-[3px] border-white rounded-full shadow-[0_0_15px_rgba(0,0,0,0.5)] pointer-events-none transition-transform duration-75"></div>
                   </Marker>
                 )}
+
+                <NavigationControl position="top-right" visualizePitch={true} />
               </Map>
             )}
             
