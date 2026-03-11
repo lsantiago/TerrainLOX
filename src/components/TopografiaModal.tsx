@@ -33,6 +33,7 @@ export default function TopografiaModal({ predioId, predioLabel, onClose }: Topo
   const { getPredioById } = usePredios()
   const [featureGeo, setFeatureGeo] = useState<Feature | null>(null)
   const mapRef = useRef<MapRef>(null)
+  const [coordsData, setCoordsData] = useState<{coords: number[][], dists: number[]}|null>(null)
 
   useEffect(() => {
     let mounted = true
@@ -55,10 +56,8 @@ export default function TopografiaModal({ predioId, predioLabel, onClose }: Topo
         
         if (cutDirection === 'CUSTOM') {
           if (customPoints.length < 2) {
-            if (mounted) {
-              setLoading(false)
-              setProfile(null)
-            }
+            setLoading(false)
+            setCoordsData(null)
             return
           }
           p1 = customPoints[0]
@@ -80,14 +79,14 @@ export default function TopografiaModal({ predioId, predioLabel, onClose }: Topo
         }
         const totalDist = distance(p1, p2, { units: 'meters' })
         
-        if (totalDist < 0.1 && mounted) {
+        if (totalDist < 0.1) {
           setError("La distancia de corte es demasiado corta para generar un perfil.")
           setLoading(false)
           return
         }
 
         const line = lineString([p1, p2])
-        const numPoints = 20
+        const numPoints = 80 // Al no depender de una API, podemos triplicar la fidelidad del perfil
         const step = totalDist / (numPoints - 1)
         const coords: number[][] = []
         const dists: number[] = []
@@ -98,48 +97,55 @@ export default function TopografiaModal({ predioId, predioLabel, onClose }: Topo
           dists.push(Math.round(i * step * 10) / 10)
         }
         
-        const locationsReq = coords.map(c => `${c[1]},${c[0]}`).join('%7C') // lat,lng
-        
-        let resData = null
-        try {
-          const res = await fetch(`https://api.opentopodata.org/v1/mapzen?locations=${locationsReq}`)
-          if(res.ok) {
-            resData = await res.json()
-          } else {
-            throw new Error('OpenTopoData API error')
-          }
-        } catch (err1) {
-          try {
-             const res2 = await fetch(`https://api.open-elevation.com/api/v1/lookup?locations=${locationsReq}`)
-             if(res2.ok) resData = await res2.json()
-             else throw new Error('API Auxiliar error')
-          } catch (err2) {
-             throw new Error('Ambas APIs de elevación fallaron o la red está inaccesible')
-          }
-        }
-        
-        if (!mounted) return
+        setCoordsData({ coords, dists })
 
-        if (resData && resData.results && resData.results.length === numPoints) {
-          const pList: ProfilePoint[] = resData.results.map((r: any, idx: number) => ({
-            dist: dists[idx],
-            elev: r.elevation,
-            lng: coords[idx][0],
-            lat: coords[idx][1]
-          }))
-          setProfile(pList)
-        } else {
-          throw new Error('Datos de elevación incompletos o erróneos de la API.')
-        }
       } catch (e: any) {
         if (mounted) setError(e.message || "Error al calcular topografía")
-      } finally {
-        if (mounted) setLoading(false)
       }
     }
     fetchData()
     return () => { mounted = false }
   }, [predioId, getPredioById, cutDirection, customPoints])
+
+  useEffect(() => {
+    if (!coordsData || !mapRef.current) return;
+    const map = mapRef.current.getMap();
+
+    let hasBuilt = false;
+    const buildProfile = () => {
+       const firstElev = map.queryTerrainElevation([coordsData.coords[0][0], coordsData.coords[0][1]]);
+       // Solo calculamos si los tiles DEM ya están en memoria del navegador
+       if (firstElev !== null) {
+          const newProfile = coordsData.coords.map((c, i) => {
+             const elev = map.queryTerrainElevation([c[0], c[1]]);
+             return {
+               dist: coordsData.dists[i],
+               lng: c[0],
+               lat: c[1],
+               elev: elev !== null ? elev : firstElev
+             }
+          });
+          setProfile(newProfile);
+          setLoading(false);
+          hasBuilt = true;
+       }
+    };
+
+    buildProfile();
+    
+    const interval = setInterval(() => {
+      if (!hasBuilt) buildProfile();
+    }, 500);
+    
+    // Refinamos cuando terminan de llegar mapas de max resolución
+    const onIdle = () => { buildProfile() };
+    map.on('idle', onIdle);
+    
+    return () => {
+       clearInterval(interval);
+       map.off('idle', onIdle);
+    };
+  }, [coordsData]);
 
   const mapStyle = {
     version: 8,
@@ -169,7 +175,7 @@ export default function TopografiaModal({ predioId, predioLabel, onClose }: Topo
     ],
     terrain: {
       source: 'terrainSource',
-      exaggeration: 1.5
+      exaggeration: 1.1
     }
   }
 
@@ -184,18 +190,6 @@ export default function TopografiaModal({ predioId, predioLabel, onClose }: Topo
     }
     return null;
   }, [cutDirection, customPoints, profile])
-
-  const hoverPointGeojson = useMemo(() => {
-    if (!hoverPoint) return null;
-    return {
-      type: 'FeatureCollection',
-      features: [{
-        type: 'Feature',
-        geometry: { type: 'Point', coordinates: [hoverPoint.lng, hoverPoint.lat] },
-        properties: {}
-      }]
-    };
-  }, [hoverPoint]);
 
   const onMapLoad = () => {
     if (featureGeo && mapRef.current) {
@@ -294,19 +288,10 @@ export default function TopografiaModal({ predioId, predioLabel, onClose }: Topo
                   </Marker>
                 ))}
 
-                {hoverPointGeojson && (
-                  <Source id="hover-point-source" type="geojson" data={hoverPointGeojson as any}>
-                    <Layer 
-                      id="hover-point-layer" 
-                      type="circle" 
-                      paint={{
-                        'circle-radius': 7,
-                        'circle-color': '#ef4444',
-                        'circle-stroke-width': 3,
-                        'circle-stroke-color': '#ffffff'
-                      }} 
-                    />
-                  </Source>
+                {hoverPoint && (
+                  <Marker longitude={hoverPoint.lng} latitude={hoverPoint.lat} anchor="center" pitchAlignment="map">
+                    <div className="w-5 h-5 bg-blue-500 border-[3px] border-white rounded-full shadow-[0_0_15px_rgba(0,0,0,0.5)] pointer-events-none transition-transform duration-75"></div>
+                  </Marker>
                 )}
               </Map>
             )}
@@ -410,7 +395,7 @@ export default function TopografiaModal({ predioId, predioLabel, onClose }: Topo
                       labelFormatter={(label) => `Distancia: ${label}m`}
                       contentStyle={{borderRadius: '8px', border: '1px solid #f3f4f6', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', fontSize: '12px', zIndex: 3000}}
                     />
-                    <Area type="monotone" dataKey="elev" stroke="#059669" strokeWidth={2} fillOpacity={1} fill="url(#colorElev)" />
+                    <Area type="natural" dataKey="elev" stroke="#059669" strokeWidth={2} fillOpacity={1} fill="url(#colorElev)" />
                   </AreaChart>
                 </ResponsiveContainer>
               ) : null}
