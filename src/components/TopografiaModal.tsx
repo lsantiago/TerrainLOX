@@ -205,6 +205,16 @@ export default function TopografiaModal({ predioId, predioLabel, onClose }: Topo
     return lineString(profile.map(p => [p.lng, p.lat]))
   }, [profile])
 
+  const slopeStats = useMemo(() => {
+    if (!profile || profile.length < 2) return null;
+    const minElev = Math.min(...profile.map(p => p.elev));
+    const maxElev = Math.max(...profile.map(p => p.elev));
+    const desnivel = maxElev - minElev;
+    const distancia = profile[profile.length - 1].dist - profile[0].dist;
+    const pendiente = distancia > 0 ? (desnivel / distancia) * 100 : 0;
+    return { minElev, maxElev, desnivel, pendiente };
+  }, [profile]);
+
   const customLineSource = useMemo(() => {
     if (cutDirection === 'CUSTOM' && customPoints.length === 2 && (!profile || profile.length === 0)) {
        return lineString(customPoints);
@@ -352,6 +362,33 @@ export default function TopografiaModal({ predioId, predioLabel, onClose }: Topo
                 </select>
               </div>
             </div>
+
+            {/* Terrain Statistics Bar */}
+            {slopeStats && profile && !loading && (
+              <div className="flex flex-wrap items-center gap-x-6 gap-y-2 mb-3 bg-emerald-50/50 rounded-lg px-3 py-2 border border-emerald-100 shrink-0">
+                <div className="flex flex-col">
+                  <span className="text-[10px] text-gray-500 font-medium">PENDIENTE APROX.</span>
+                  <span className="text-sm font-bold text-emerald-700">
+                    {slopeStats.pendiente.toFixed(1)}% <span className="text-xs font-medium text-emerald-600/70">({Math.round(Math.atan(slopeStats.pendiente/100) * 180/Math.PI)}°)</span>
+                  </span>
+                </div>
+                <div className="w-px h-6 bg-emerald-200/60 hidden sm:block"></div>
+                <div className="flex flex-col">
+                  <span className="text-[10px] text-gray-500 font-medium">DESNIVEL</span>
+                  <span className="text-sm font-bold text-gray-700">{slopeStats.desnivel.toFixed(1)} m</span>
+                </div>
+                <div className="w-px h-6 bg-emerald-200/60 hidden sm:block"></div>
+                <div className="flex flex-col">
+                  <span className="text-[10px] text-gray-500 font-medium">ELEVACIÓN MÍN.</span>
+                  <span className="text-sm font-bold text-gray-700">{slopeStats.minElev.toFixed(0)} msnm</span>
+                </div>
+                <div className="w-px h-6 bg-emerald-200/60 hidden sm:block"></div>
+                <div className="flex flex-col">
+                  <span className="text-[10px] text-gray-500 font-medium">ELEVACIÓN MÁX.</span>
+                  <span className="text-sm font-bold text-gray-700">{slopeStats.maxElev.toFixed(0)} msnm</span>
+                </div>
+              </div>
+            )}
             
             <div className="flex-1 min-h-[100px] relative">
               {loading && featureGeo ? (
