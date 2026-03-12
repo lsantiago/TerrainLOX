@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef } from 'react'
 import Map, { Source, Layer, Marker, NavigationControl } from 'react-map-gl/maplibre'
 import type { MapRef } from 'react-map-gl/maplibre'
 import 'maplibre-gl/dist/maplibre-gl.css'
-import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
+import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine } from 'recharts'
 import { bbox, distance, along, lineString, pointGrid, isolines } from '@turf/turf'
 import type { Feature, Polygon, MultiPolygon, FeatureCollection, Point } from 'geojson'
 import { createPortal } from 'react-dom'
@@ -481,10 +481,12 @@ export default function TopografiaModal({ predioId, predioLabel, onClose }: Topo
                 onMove={(evt) => setMapBearing(evt.viewState.bearing)}
                 onMouseMove={(e) => {
                   if (!profile || profile.length === 0) return;
-                  const features = mapRef.current?.getMap().queryRenderedFeatures(e.point, { layers: ['profile-line'] });
+                  const features = mapRef.current?.getMap().queryRenderedFeatures(e.point, { 
+                    layers: ['profile-line', 'profile-line-hit-area'] 
+                  });
+                  
                   if (features && features.length > 0) {
                     const { lng, lat } = e.lngLat;
-                    // Encontrar punto más cercano en el perfil
                     let minDist = Infinity;
                     let closestIdx = 0;
                     profile.forEach((p, i) => {
@@ -497,8 +499,9 @@ export default function TopografiaModal({ predioId, predioLabel, onClose }: Topo
                     setMapHoverIndex(closestIdx);
                     setHoverPoint(profile[closestIdx]);
                   } else {
+                    // Solo limpiar si no estamos interactuando con el gráfico (mapHoverIndex != null indica origen mapa)
                     setMapHoverIndex(null);
-                    // No limpiar hoverPoint aquí para no romper la fluidez si se sale un poco de la línea
+                    setHoverPoint(null);
                   }
                 }}
                 onMouseLeave={() => {
@@ -514,7 +517,13 @@ export default function TopografiaModal({ predioId, predioLabel, onClose }: Topo
                     });
                   }
                 }}
-                cursor={cutDirection === 'CUSTOM' ? 'crosshair' : 'grab'}
+                cursor={
+                  cutDirection === 'CUSTOM' 
+                    ? 'crosshair' 
+                    : mapHoverIndex !== null 
+                      ? 'pointer' 
+                      : 'grab'
+                }
               >
                 <Source id="predio-source" type="geojson" data={featureGeo}>
                   <Layer id="predio-fill" type="fill" paint={{'fill-color': '#10b981', 'fill-opacity': 0.4}} />
@@ -523,7 +532,17 @@ export default function TopografiaModal({ predioId, predioLabel, onClose }: Topo
 
                 {profileGeojsonLine && (
                   <Source id="profile-line-source" type="geojson" data={profileGeojsonLine}>
-                    <Layer id="profile-line" type="line" paint={{'line-color': '#ef4444', 'line-width': 3, 'line-dasharray': [2, 2]}} />
+                    {/* Área de impacto invisible más ancha para facilitar el hover */}
+                    <Layer 
+                      id="profile-line-hit-area" 
+                      type="line" 
+                      paint={{'line-color': '#ff0000', 'line-width': 25, 'line-opacity': 0}} 
+                    />
+                    <Layer 
+                      id="profile-line" 
+                      type="line" 
+                      paint={{'line-color': '#ef4444', 'line-width': 3, 'line-dasharray': [2, 2]}} 
+                    />
                   </Source>
                 )}
 
@@ -598,22 +617,26 @@ export default function TopografiaModal({ predioId, predioLabel, onClose }: Topo
                   </Marker>
                 )}
 
+                {/* Indicador de Sincronización (Diseño Premium Restaurado) */}
                 {hoverPoint && (
-                  <Marker longitude={hoverPoint.lng} latitude={hoverPoint.lat} anchor="bottom" style={{ zIndex: 100 }}>
-                    <div className="flex flex-col items-center pointer-events-none">
-                      {/* Etiqueta de elevación */}
-                      <div className="bg-gray-900 text-white text-[11px] font-bold px-2.5 py-1 rounded-lg shadow-xl mb-1 whitespace-nowrap border border-yellow-400/50">
-                        <span className="text-yellow-300">{hoverPoint.elev.toFixed(1)}</span>
-                        <span className="text-gray-300 text-[10px]"> msnm</span>
-                        <span className="text-gray-500 ml-1">|</span>
-                        <span className="text-cyan-300 ml-1">{hoverPoint.dist}m</span>
+                  <Marker longitude={hoverPoint.lng} latitude={hoverPoint.lat} anchor="bottom" style={{ zIndex: 1000 }}>
+                    <div className="flex flex-col items-center pointer-events-none select-none">
+                      {/* Etiqueta de elevación flotante */}
+                      <div className="bg-gray-900/95 backdrop-blur-md text-white text-[11px] font-bold px-3 py-1.5 rounded-lg shadow-2xl mb-1 whitespace-nowrap border border-yellow-400/60 ring-1 ring-black/20 translate-y-[-4px]">
+                        <span className="text-yellow-400">{hoverPoint.elev.toFixed(1)}</span>
+                        <span className="text-gray-400 text-[10px] ml-0.5">msnm</span>
+                        <span className="mx-1.5 opacity-30">|</span>
+                        <span className="text-cyan-400">{Math.round(hoverPoint.dist)}m</span>
                       </div>
-                      {/* Línea vertical */}
-                      <div className="w-[2px] h-8 bg-gradient-to-b from-yellow-400 to-yellow-500 shadow-[0_0_6px_rgba(250,204,21,0.8)]"></div>
-                      {/* Punto base con pulso */}
-                      <div className="relative">
-                        <div className="absolute -inset-2 bg-yellow-400/40 rounded-full animate-ping"></div>
-                        <div className="relative w-4 h-4 bg-yellow-400 border-[2.5px] border-white rounded-full shadow-[0_0_16px_rgba(250,204,21,0.9)]"></div>
+                      
+                      {/* Línea vertical de conexión con efecto de brillo */}
+                      <div className="w-[2px] h-10 bg-gradient-to-b from-yellow-400 via-yellow-400/80 to-transparent shadow-[0_0_12px_rgba(250,204,21,0.6)]"></div>
+                      
+                      {/* Punto base interactivo con pulso animado */}
+                      <div className="relative mb-[2px]">
+                        <div className="absolute -inset-3 bg-yellow-400/40 rounded-full animate-ping"></div>
+                        <div className="absolute -inset-1.5 bg-yellow-400/20 rounded-full"></div>
+                        <div className="relative w-4 h-4 bg-yellow-400 border-[2.5px] border-white rounded-full shadow-[0_0_15px_rgba(250,204,21,0.8)]"></div>
                       </div>
                     </div>
                   </Marker>
@@ -779,7 +802,7 @@ export default function TopografiaModal({ predioId, predioLabel, onClose }: Topo
                     onMouseMove={(e: any) => {
                       if(e && e.activePayload && e.activePayload.length > 0) {
                         setHoverPoint(e.activePayload[0].payload)
-                        setMapHoverIndex(null); // Reset map hover when chart is prioritized
+                        setMapHoverIndex(null); 
                       }
                     }}
                     onMouseLeave={() => {
@@ -794,6 +817,16 @@ export default function TopografiaModal({ predioId, predioLabel, onClose }: Topo
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
+                    {/* Línea de referencia sincronizada con el mapa */}
+                    {mapHoverIndex !== null && profile[mapHoverIndex] && (
+                      <ReferenceLine 
+                        x={profile[mapHoverIndex].dist} 
+                        stroke="#ef4444" 
+                        strokeWidth={2} 
+                        strokeDasharray="3 3"
+                        label={{ value: 'Vista Mapa', position: 'top', fill: '#ef4444', fontSize: 10, fontWeight: 'bold' }} 
+                      />
+                    )}
                     <XAxis 
                       dataKey="dist" 
                       tickFormatter={(v)=>`${v}m`} 
@@ -826,7 +859,7 @@ export default function TopografiaModal({ predioId, predioLabel, onClose }: Topo
                       strokeWidth={2.5} 
                       fillOpacity={1} 
                       fill="url(#colorElev)"
-                      activeDot={mapHoverIndex !== null ? { r: 6, fill: '#ef4444', stroke: '#fff', strokeWidth: 2 } : undefined}
+                      activeDot={{ r: 5, fill: '#facc15', stroke: '#fff', strokeWidth: 2 }}
                     />
                   </AreaChart>
                 </ResponsiveContainer>
