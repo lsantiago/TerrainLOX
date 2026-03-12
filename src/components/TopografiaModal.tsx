@@ -3,7 +3,7 @@ import Map, { Source, Layer, Marker, NavigationControl } from 'react-map-gl/mapl
 import type { MapRef } from 'react-map-gl/maplibre'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine } from 'recharts'
-import { bbox, distance, along, lineString, pointGrid, isolines } from '@turf/turf'
+import { bbox, distance, along, lineString, pointGrid, isolines, lineIntersect } from '@turf/turf'
 import type { Feature, Polygon, MultiPolygon, FeatureCollection, Point } from 'geojson'
 import { createPortal } from 'react-dom'
 import { usePredios } from '../hooks/usePredios'
@@ -79,6 +79,8 @@ export default function TopografiaModal({ predioId, predioLabel, onClose }: Topo
   const [showContours, setShowContours] = useState(false)
   const [contourLines, setContourLines] = useState<FeatureCollection | null>(null)
   const [mapHoverIndex, setMapHoverIndex] = useState<number | null>(null)
+  const [hoverSource, setHoverSource] = useState<'map' | 'chart' | null>(null)
+  const [extendProfile, setExtendProfile] = useState(false)
 
   // Cargar geometría UNA vez
   useEffect(() => {
@@ -141,9 +143,26 @@ export default function TopografiaModal({ predioId, predioLabel, onClose }: Topo
            p1 = [minLng, midLat]
            p2 = [maxLng, midLat]
         }
-        const totalDist = distance(p1, p2, { units: 'meters' })
         
-        if (totalDist < 0.1) {
+        // --- CLIP TO POLYGON BOUNDARY (New Request) ---
+        if (!extendProfile && cutDirection !== 'CUSTOM' && featureGeo) {
+           const fullLine = lineString([p1, p2])
+           const intersections = lineIntersect(fullLine, featureGeo)
+           
+           if (intersections.features.length >= 2) {
+              // Sort features by distance along the line from p1
+              const points = intersections.features.map(f => f.geometry.coordinates)
+              const sorted = points.sort((a, b) => 
+                 distance(p1, a, { units: 'meters' }) - distance(p1, b, { units: 'meters' })
+              )
+              p1 = sorted[0]
+              p2 = sorted[sorted.length - 1]
+           }
+        }
+        
+        const finalDist = distance(p1, p2, { units: 'meters' })
+        
+        if (finalDist < 0.1) {
           setError("La distancia de corte es demasiado corta para generar un perfil.")
           setLoading(false)
           return
@@ -151,7 +170,7 @@ export default function TopografiaModal({ predioId, predioLabel, onClose }: Topo
 
         const line = lineString([p1, p2])
         const numPoints = 80 // Al no depender de una API, podemos triplicar la fidelidad del perfil
-        const step = totalDist / (numPoints - 1)
+        const step = finalDist / (numPoints - 1)
         const coords: number[][] = []
         const dists: number[] = []
         
@@ -167,7 +186,7 @@ export default function TopografiaModal({ predioId, predioLabel, onClose }: Topo
         setError(e.message || "Error al trazar área de corte")
         setLoading(false)
       }
-  }, [featureGeo, cutDirection, customPoints])
+  }, [featureGeo, cutDirection, customPoints, extendProfile])
 
   // Consultar elevaciones al mapa en 3D
   useEffect(() => {
@@ -481,7 +500,10 @@ export default function TopografiaModal({ predioId, predioLabel, onClose }: Topo
                 onMove={(evt) => setMapBearing(evt.viewState.bearing)}
                 onMouseMove={(e) => {
                   if (!profile || profile.length === 0) return;
-                  const features = mapRef.current?.getMap().queryRenderedFeatures(e.point, { 
+                  const map = mapRef.current?.getMap();
+                  if (!map) return;
+
+                  const features = map.queryRenderedFeatures(e.point, { 
                     layers: ['profile-line', 'profile-line-hit-area'] 
                   });
                   
@@ -489,6 +511,7 @@ export default function TopografiaModal({ predioId, predioLabel, onClose }: Topo
                     const { lng, lat } = e.lngLat;
                     let minDist = Infinity;
                     let closestIdx = 0;
+                    
                     profile.forEach((p, i) => {
                       const d = Math.pow(p.lng - lng, 2) + Math.pow(p.lat - lat, 2);
                       if (d < minDist) {
@@ -496,17 +519,25 @@ export default function TopografiaModal({ predioId, predioLabel, onClose }: Topo
                         closestIdx = i;
                       }
                     });
+                    
                     setMapHoverIndex(closestIdx);
                     setHoverPoint(profile[closestIdx]);
+                    setHoverSource('map');
                   } else {
-                    // Solo limpiar si no estamos interactuando con el gráfico (mapHoverIndex != null indica origen mapa)
-                    setMapHoverIndex(null);
-                    setHoverPoint(null);
+                    // Solo limpiamos si el movimiento ocurre sobre el mapa y no sobre el gráfico
+                    if (hoverSource === 'map') {
+                      setMapHoverIndex(null);
+                      setHoverPoint(null);
+                      setHoverSource(null);
+                    }
                   }
                 }}
                 onMouseLeave={() => {
-                  setMapHoverIndex(null);
-                  setHoverPoint(null);
+                  if (hoverSource === 'map') {
+                    setMapHoverIndex(null);
+                    setHoverPoint(null);
+                    setHoverSource(null);
+                  }
                 }}
                 onClick={(e) => {
                   if (cutDirection === 'CUSTOM') {
@@ -718,6 +749,22 @@ export default function TopografiaModal({ predioId, predioLabel, onClose }: Topo
                     <span className="hidden sm:inline">{btn.label}</span>
                   </button>
                 ))}
+                
+                <div className="w-px h-4 bg-gray-200 mx-1 hidden sm:block"></div>
+                
+                {/* Opción para Ver Entorno vs Solo Predio */}
+                <button
+                  onClick={() => setExtendProfile(!extendProfile)}
+                  className={`px-2 py-1 rounded text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 border shadow-sm ${
+                    extendProfile
+                      ? 'bg-amber-50 border-amber-200 text-amber-700 hover:bg-amber-100'
+                      : 'bg-sky-50 border-sky-200 text-sky-700 hover:bg-sky-100'
+                  }`}
+                  title={extendProfile ? "Volver al límite del predio" : "Ver elevación del terreno vecino"}
+                >
+                  <span className="text-xs">{extendProfile ? '🌲 Entorno' : '🏠 Predio'}</span>
+                  <div className={`w-2 h-2 rounded-full ${extendProfile ? 'bg-amber-400 animate-pulse' : 'bg-sky-400'}`}></div>
+                </button>
               </div>
             </div>
 
@@ -801,13 +848,17 @@ export default function TopografiaModal({ predioId, predioLabel, onClose }: Topo
                     margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
                     onMouseMove={(e: any) => {
                       if(e && e.activePayload && e.activePayload.length > 0) {
-                        setHoverPoint(e.activePayload[0].payload)
+                        const point = e.activePayload[0].payload;
+                        setHoverPoint(point);
+                        setHoverSource('chart');
                         setMapHoverIndex(null); 
                       }
                     }}
                     onMouseLeave={() => {
-                      setHoverPoint(null);
-                      setMapHoverIndex(null);
+                      if (hoverSource === 'chart') {
+                        setHoverPoint(null);
+                        setHoverSource(null);
+                      }
                     }}
                   >
                     <defs>
@@ -817,14 +868,14 @@ export default function TopografiaModal({ predioId, predioLabel, onClose }: Topo
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
-                    {/* Línea de referencia sincronizada con el mapa */}
-                    {mapHoverIndex !== null && profile[mapHoverIndex] && (
+                    {/* Línea de referencia que indica posición del mapa en el gráfico */}
+                    {hoverSource === 'map' && hoverPoint && (
                       <ReferenceLine 
-                        x={profile[mapHoverIndex].dist} 
+                        x={hoverPoint.dist} 
                         stroke="#ef4444" 
                         strokeWidth={2} 
-                        strokeDasharray="3 3"
-                        label={{ value: 'Vista Mapa', position: 'top', fill: '#ef4444', fontSize: 10, fontWeight: 'bold' }} 
+                        strokeDasharray="4 4"
+                        label={{ value: 'VISTA MAPA', position: 'top', fill: '#ef4444', fontSize: 9, fontWeight: 'bold' }} 
                       />
                     )}
                     <XAxis 
