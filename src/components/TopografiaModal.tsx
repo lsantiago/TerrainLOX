@@ -79,6 +79,7 @@ export default function TopografiaModal({ predioId, predioLabel, onClose }: Topo
   const [showContours, setShowContours] = useState(false)
   const [contourLines, setContourLines] = useState<FeatureCollection | null>(null)
   const [mapHoverIndex, setMapHoverIndex] = useState<number | null>(null)
+  const [hoverSource, setHoverSource] = useState<'map' | 'chart' | null>(null)
 
   // Cargar geometría UNA vez
   useEffect(() => {
@@ -481,7 +482,10 @@ export default function TopografiaModal({ predioId, predioLabel, onClose }: Topo
                 onMove={(evt) => setMapBearing(evt.viewState.bearing)}
                 onMouseMove={(e) => {
                   if (!profile || profile.length === 0) return;
-                  const features = mapRef.current?.getMap().queryRenderedFeatures(e.point, { 
+                  const map = mapRef.current?.getMap();
+                  if (!map) return;
+
+                  const features = map.queryRenderedFeatures(e.point, { 
                     layers: ['profile-line', 'profile-line-hit-area'] 
                   });
                   
@@ -489,6 +493,7 @@ export default function TopografiaModal({ predioId, predioLabel, onClose }: Topo
                     const { lng, lat } = e.lngLat;
                     let minDist = Infinity;
                     let closestIdx = 0;
+                    
                     profile.forEach((p, i) => {
                       const d = Math.pow(p.lng - lng, 2) + Math.pow(p.lat - lat, 2);
                       if (d < minDist) {
@@ -496,17 +501,25 @@ export default function TopografiaModal({ predioId, predioLabel, onClose }: Topo
                         closestIdx = i;
                       }
                     });
+                    
                     setMapHoverIndex(closestIdx);
                     setHoverPoint(profile[closestIdx]);
+                    setHoverSource('map');
                   } else {
-                    // Solo limpiar si no estamos interactuando con el gráfico (mapHoverIndex != null indica origen mapa)
-                    setMapHoverIndex(null);
-                    setHoverPoint(null);
+                    // Solo limpiamos si el movimiento ocurre sobre el mapa y no sobre el gráfico
+                    if (hoverSource === 'map') {
+                      setMapHoverIndex(null);
+                      setHoverPoint(null);
+                      setHoverSource(null);
+                    }
                   }
                 }}
                 onMouseLeave={() => {
-                  setMapHoverIndex(null);
-                  setHoverPoint(null);
+                  if (hoverSource === 'map') {
+                    setMapHoverIndex(null);
+                    setHoverPoint(null);
+                    setHoverSource(null);
+                  }
                 }}
                 onClick={(e) => {
                   if (cutDirection === 'CUSTOM') {
@@ -801,13 +814,17 @@ export default function TopografiaModal({ predioId, predioLabel, onClose }: Topo
                     margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
                     onMouseMove={(e: any) => {
                       if(e && e.activePayload && e.activePayload.length > 0) {
-                        setHoverPoint(e.activePayload[0].payload)
+                        const point = e.activePayload[0].payload;
+                        setHoverPoint(point);
+                        setHoverSource('chart');
                         setMapHoverIndex(null); 
                       }
                     }}
                     onMouseLeave={() => {
-                      setHoverPoint(null);
-                      setMapHoverIndex(null);
+                      if (hoverSource === 'chart') {
+                        setHoverPoint(null);
+                        setHoverSource(null);
+                      }
                     }}
                   >
                     <defs>
@@ -817,14 +834,14 @@ export default function TopografiaModal({ predioId, predioLabel, onClose }: Topo
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
-                    {/* Línea de referencia sincronizada con el mapa */}
-                    {mapHoverIndex !== null && profile[mapHoverIndex] && (
+                    {/* Línea de referencia que indica posición del mapa en el gráfico */}
+                    {hoverSource === 'map' && hoverPoint && (
                       <ReferenceLine 
-                        x={profile[mapHoverIndex].dist} 
+                        x={hoverPoint.dist} 
                         stroke="#ef4444" 
                         strokeWidth={2} 
-                        strokeDasharray="3 3"
-                        label={{ value: 'Vista Mapa', position: 'top', fill: '#ef4444', fontSize: 10, fontWeight: 'bold' }} 
+                        strokeDasharray="4 4"
+                        label={{ value: 'VISTA MAPA', position: 'top', fill: '#ef4444', fontSize: 9, fontWeight: 'bold' }} 
                       />
                     )}
                     <XAxis 
