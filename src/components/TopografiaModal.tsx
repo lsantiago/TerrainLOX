@@ -3,8 +3,8 @@ import Map, { Source, Layer, Marker, NavigationControl } from 'react-map-gl/mapl
 import type { MapRef } from 'react-map-gl/maplibre'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
-import { bbox, distance, along, lineString, pointGrid } from '@turf/turf'
-import type { Feature, Polygon, MultiPolygon } from 'geojson'
+import { bbox, distance, along, lineString, pointGrid, isolines } from '@turf/turf'
+import type { Feature, Polygon, MultiPolygon, FeatureCollection, Point } from 'geojson'
 import { createPortal } from 'react-dom'
 import { usePredios } from '../hooks/usePredios'
 
@@ -75,6 +75,10 @@ export default function TopografiaModal({ predioId, predioLabel, onClose }: Topo
   const mapRef = useRef<MapRef>(null)
   const [coordsData, setCoordsData] = useState<{coords: number[][], dists: number[]}|null>(null)
   const [mapLoaded, setMapLoaded] = useState(false)
+  const [mapBearing, setMapBearing] = useState(0)
+  const [showContours, setShowContours] = useState(false)
+  const [contourLines, setContourLines] = useState<FeatureCollection | null>(null)
+  const [mapHoverIndex, setMapHoverIndex] = useState<number | null>(null)
 
   // Cargar geometría UNA vez
   useEffect(() => {
@@ -238,6 +242,7 @@ export default function TopografiaModal({ predioId, predioLabel, onClose }: Topo
         
         if (elev !== null) {
           valid = true;
+          pt.properties = { ...pt.properties, elevation: elev };
           if (elev > highest.elev) highest = { lng, lat, elev };
           if (elev < lowest.elev) lowest = { lng, lat, elev };
         }
@@ -274,10 +279,98 @@ export default function TopografiaModal({ predioId, predioLabel, onClose }: Topo
 
   }, [featureGeo, mapLoaded]);
 
+  // Generar curvas de nivel cuando el usuario las active
+  useEffect(() => {
+    if (!showContours || !featureGeo || !mapRef.current || !mapLoaded) {
+      setContourLines(null);
+      return;
+    }
+
+    const map = mapRef.current.getMap();
+    // Verificar que los tiles DEM estén disponibles (probar centro y esquinas)
+    const box = bbox(featureGeo);
+    const center: [number, number] = [(box[0] + box[2]) / 2, (box[1] + box[3]) / 2];
+    const testElev = map.queryTerrainElevation(center) || map.queryTerrainElevation([box[0], box[1]]) || map.queryTerrainElevation([box[2], box[3]]);
+    
+    if (testElev === null) {
+      const retryOnIdle = () => { setGlobalExtremes(prev => ({ ...prev })); }; // Trigger re-run
+      map.once('idle', retryOnIdle);
+      return;
+    }
+
+    // Crear malla DENSA y RECTANGULAR (sin mask) - isolines necesita grilla regular
+    const distDiag = distance([box[0], box[1]], [box[2], box[3]], { units: 'kilometers' });
+    const cellSide = Math.max(0.003, distDiag / 25); // Más denso que la malla de extremos
+
+    const denseGrid = pointGrid(box, cellSide, { units: 'kilometers' });
+    if (!denseGrid || denseGrid.features.length < 9) return;
+
+    // Asignar elevaciones desde MapLibre
+    let minE = Infinity, maxE = -Infinity;
+    let validCount = 0;
+    for (const pt of denseGrid.features) {
+      const [lng, lat] = pt.geometry.coordinates;
+      const elev = map.queryTerrainElevation([lng, lat]);
+      if (elev !== null) {
+        pt.properties = { ...pt.properties, elevation: elev };
+        if (elev < minE) minE = elev;
+        if (elev > maxE) maxE = elev;
+        validCount++;
+      } else {
+        pt.properties = { ...pt.properties, elevation: null };
+      }
+    }
+
+    // Filtrar puntos sin elevación para evitar errores
+    const validGrid = {
+      type: 'FeatureCollection' as const,
+      features: denseGrid.features.filter(f => f.properties?.elevation !== null)
+    };
+
+    if (validCount < 9 || maxE - minE < 0.5) return;
+
+    const range = maxE - minE;
+    let interval: number;
+    if (range <= 5) interval = 1;
+    else if (range <= 20) interval = 2;
+    else if (range <= 50) interval = 5;
+    else interval = 10;
+
+    const breaks: number[] = [];
+    const startElev = Math.ceil(minE / interval) * interval;
+    for (let e = startElev; e <= maxE; e += interval) {
+      breaks.push(Math.round(e * 10) / 10);
+    }
+
+    if (breaks.length < 2) return;
+
+    try {
+      const contours = isolines(validGrid as FeatureCollection<Point>, breaks, { zProperty: 'elevation' });
+      contours.features.forEach(f => {
+        if (f.properties) {
+          f.properties.label = `${Math.round(f.properties.elevation)}m`;
+        }
+      });
+      setContourLines(contours as FeatureCollection);
+    } catch (e) {
+      console.warn('Error generando curvas de nivel:', e);
+      setContourLines(null);
+    }
+  }, [showContours, featureGeo, mapLoaded, globalExtremes]);
+
   const profileGeojsonLine = useMemo(() => {
     if(!profile || profile.length === 0) return null
     return lineString(profile.map(p => [p.lng, p.lat]))
   }, [profile])
+
+  const getSlopeCategory = (pendiente: number) => {
+    const p = Math.abs(pendiente);
+    if (p <= 5)  return { label: 'Plano', color: '#10b981', bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-100' };
+    if (p <= 15) return { label: 'Suave', color: '#eab308', bg: 'bg-yellow-50',  text: 'text-yellow-700', border: 'border-yellow-100' };
+    if (p <= 30) return { label: 'Moderado', color: '#f97316', bg: 'bg-orange-50', text: 'text-orange-700', border: 'border-orange-100' };
+    if (p <= 50) return { label: 'Fuerte', color: '#ef4444', bg: 'bg-red-50',    text: 'text-red-700',    border: 'border-red-100' };
+    return { label: 'Escarpado', color: '#a855f7', bg: 'bg-purple-50', text: 'text-purple-700', border: 'border-purple-100' };
+  };
 
   const slopeStats = useMemo(() => {
     if (!profile || profile.length < 2) return null;
@@ -286,7 +379,8 @@ export default function TopografiaModal({ predioId, predioLabel, onClose }: Topo
     const desnivel = maxElev - minElev;
     const distancia = profile[profile.length - 1].dist - profile[0].dist;
     const pendiente = distancia > 0 ? (desnivel / distancia) * 100 : 0;
-    return { minElev, maxElev, desnivel, pendiente };
+    const category = getSlopeCategory(pendiente);
+    return { minElev, maxElev, desnivel, pendiente, category };
   }, [profile]);
 
   const customLineSource = useMemo(() => {
@@ -295,6 +389,23 @@ export default function TopografiaModal({ predioId, predioLabel, onClose }: Topo
     }
     return null;
   }, [cutDirection, customPoints, profile])
+
+  // Cambio 1: Aviso de resolución insuficiente
+  const DEM_RESOLUTION_M = 30; // SRTM Terrarium = 30m por píxel
+  const resolutionWarning = useMemo(() => {
+    if (!featureGeo) return null;
+    const box = bbox(featureGeo);
+    const diagonalM = distance([box[0], box[1]], [box[2], box[3]], { units: 'meters' });
+    const pixelsCovered = diagonalM / DEM_RESOLUTION_M;
+    if (pixelsCovered < 4) {
+      return {
+        diagonal: Math.round(diagonalM),
+        pixels: pixelsCovered.toFixed(1),
+        severe: pixelsCovered < 2
+      };
+    }
+    return null;
+  }, [featureGeo]);
 
   const onMapLoad = () => {
     setMapLoaded(true);
@@ -306,6 +417,15 @@ export default function TopografiaModal({ predioId, predioLabel, onClose }: Topo
       );
     }
   };
+
+  // Cambio 5: Configuración de botones de dirección
+  const directionButtons: { value: CutDirection; icon: string; label: string }[] = [
+    { value: 'SW-NE', icon: '↗', label: 'Diagonal' },
+    { value: 'NW-SE', icon: '↘', label: 'Inversa' },
+    { value: 'N-S',   icon: '↕', label: 'N-S' },
+    { value: 'W-E',   icon: '↔', label: 'E-O' },
+    { value: 'CUSTOM', icon: '✏', label: 'Libre' },
+  ];
 
 
   const modalContent = (
@@ -358,6 +478,33 @@ export default function TopografiaModal({ predioId, predioLabel, onClose }: Topo
                 dragRotate={true}
                 pitchWithRotate={true}
                 onLoad={onMapLoad}
+                onMove={(evt) => setMapBearing(evt.viewState.bearing)}
+                onMouseMove={(e) => {
+                  if (!profile || profile.length === 0) return;
+                  const features = mapRef.current?.getMap().queryRenderedFeatures(e.point, { layers: ['profile-line'] });
+                  if (features && features.length > 0) {
+                    const { lng, lat } = e.lngLat;
+                    // Encontrar punto más cercano en el perfil
+                    let minDist = Infinity;
+                    let closestIdx = 0;
+                    profile.forEach((p, i) => {
+                      const d = Math.pow(p.lng - lng, 2) + Math.pow(p.lat - lat, 2);
+                      if (d < minDist) {
+                        minDist = d;
+                        closestIdx = i;
+                      }
+                    });
+                    setMapHoverIndex(closestIdx);
+                    setHoverPoint(profile[closestIdx]);
+                  } else {
+                    setMapHoverIndex(null);
+                    // No limpiar hoverPoint aquí para no romper la fluidez si se sale un poco de la línea
+                  }
+                }}
+                onMouseLeave={() => {
+                  setMapHoverIndex(null);
+                  setHoverPoint(null);
+                }}
                 onClick={(e) => {
                   if (cutDirection === 'CUSTOM') {
                     const { lng, lat } = e.lngLat;
@@ -377,6 +524,38 @@ export default function TopografiaModal({ predioId, predioLabel, onClose }: Topo
                 {profileGeojsonLine && (
                   <Source id="profile-line-source" type="geojson" data={profileGeojsonLine}>
                     <Layer id="profile-line" type="line" paint={{'line-color': '#ef4444', 'line-width': 3, 'line-dasharray': [2, 2]}} />
+                  </Source>
+                )}
+
+                {/* Curvas de nivel */}
+                {showContours && contourLines && (
+                  <Source id="contour-source" type="geojson" data={contourLines}>
+                    <Layer
+                      id="contour-lines"
+                      type="line"
+                      paint={{
+                        'line-color': '#facc15',
+                        'line-width': 1.5,
+                        'line-opacity': 0.85
+                      }}
+                    />
+                    <Layer
+                      id="contour-labels"
+                      type="symbol"
+                      layout={{
+                        'symbol-placement': 'line',
+                        'text-field': ['get', 'label'],
+                        'text-size': 10,
+                        'text-offset': [0, -0.6],
+                        'text-allow-overlap': false,
+                        'text-ignore-placement': false,
+                      }}
+                      paint={{
+                        'text-color': '#fef08a',
+                        'text-halo-color': '#000000',
+                        'text-halo-width': 1.5,
+                      }}
+                    />
                   </Source>
                 )}
 
@@ -420,8 +599,23 @@ export default function TopografiaModal({ predioId, predioLabel, onClose }: Topo
                 )}
 
                 {hoverPoint && (
-                  <Marker longitude={hoverPoint.lng} latitude={hoverPoint.lat} anchor="center" pitchAlignment="map">
-                    <div className="w-5 h-5 bg-blue-500 border-[3px] border-white rounded-full shadow-[0_0_15px_rgba(0,0,0,0.5)] pointer-events-none transition-transform duration-75"></div>
+                  <Marker longitude={hoverPoint.lng} latitude={hoverPoint.lat} anchor="bottom" style={{ zIndex: 100 }}>
+                    <div className="flex flex-col items-center pointer-events-none">
+                      {/* Etiqueta de elevación */}
+                      <div className="bg-gray-900 text-white text-[11px] font-bold px-2.5 py-1 rounded-lg shadow-xl mb-1 whitespace-nowrap border border-yellow-400/50">
+                        <span className="text-yellow-300">{hoverPoint.elev.toFixed(1)}</span>
+                        <span className="text-gray-300 text-[10px]"> msnm</span>
+                        <span className="text-gray-500 ml-1">|</span>
+                        <span className="text-cyan-300 ml-1">{hoverPoint.dist}m</span>
+                      </div>
+                      {/* Línea vertical */}
+                      <div className="w-[2px] h-8 bg-gradient-to-b from-yellow-400 to-yellow-500 shadow-[0_0_6px_rgba(250,204,21,0.8)]"></div>
+                      {/* Punto base con pulso */}
+                      <div className="relative">
+                        <div className="absolute -inset-2 bg-yellow-400/40 rounded-full animate-ping"></div>
+                        <div className="relative w-4 h-4 bg-yellow-400 border-[2.5px] border-white rounded-full shadow-[0_0_16px_rgba(250,204,21,0.9)]"></div>
+                      </div>
+                    </div>
                   </Marker>
                 )}
 
@@ -432,61 +626,127 @@ export default function TopografiaModal({ predioId, predioLabel, onClose }: Topo
             <div className="absolute top-2 left-2 bg-black/60 backdrop-blur-sm text-white px-3 py-1.5 rounded-md text-[10px] sm:text-xs pointer-events-none">
               Usa <strong>Shift + Clic</strong> para rotar 3D {cutDirection === 'CUSTOM' && '| Usa clic para marcar puntos A y B'}
             </div>
+
+            {/* Botón toggle para curvas de nivel */}
+            <button
+              onClick={() => setShowContours(prev => !prev)}
+              className={`absolute top-2 right-14 z-10 flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[11px] font-medium transition-all cursor-pointer shadow-md ${
+                showContours
+                  ? 'bg-yellow-400 text-gray-900 hover:bg-yellow-300'
+                  : 'bg-black/60 backdrop-blur-sm text-white hover:bg-black/80'
+              }`}
+              title={showContours ? 'Ocultar curvas de nivel' : 'Mostrar curvas de nivel'}
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 18c2-2 4-6 8-6s6 4 8 6M4 13c2-1.5 4-5 8-5s6 3.5 8 5M4 8c2-1 4-4 8-4s6 3 8 4" />
+              </svg>
+              <span className="hidden sm:inline">{showContours ? 'Curvas ON' : 'Curvas'}</span>
+            </button>
+
+            {/* Flecha de Norte clásica */}
+            <div className="absolute bottom-3 right-3 pointer-events-none" style={{ zIndex: 10 }}>
+              <div
+                className="w-14 h-14 flex items-center justify-center"
+                style={{ transform: `rotate(${-mapBearing}deg)`, transition: 'transform 0.15s ease-out' }}
+              >
+                <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  {/* Círculo exterior */}
+                  <circle cx="24" cy="24" r="22" fill="white" fillOpacity="0.85" stroke="#374151" strokeWidth="1.5" />
+                  {/* Triángulo Norte (rojo) */}
+                  <polygon points="24,5 29,22 19,22" fill="#dc2626" />
+                  {/* Triángulo Sur (gris oscuro) */}
+                  <polygon points="24,43 29,26 19,26" fill="#4b5563" />
+                  {/* Centro */}
+                  <circle cx="24" cy="24" r="3" fill="white" stroke="#374151" strokeWidth="1" />
+                  {/* Letra N */}
+                  <text x="24" y="14" textAnchor="middle" fill="white" fontSize="7" fontWeight="bold" fontFamily="Arial">N</text>
+                </svg>
+              </div>
+            </div>
           </div>
 
           {/* Profile Chart Section (45%) */}
           <div className="h-[45%] flex flex-col p-4 bg-white border-t border-gray-200 relative">
-            <div className="flex justify-between items-center mb-3 shrink-0">
+            <div className="flex justify-between items-center mb-2 shrink-0">
               <h3 className="text-xs sm:text-sm font-semibold text-gray-700 flex items-center gap-1.5">
                 <svg className="w-4 h-4 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z" />
                 </svg>
-                Corte Transversal (Perfil de Elevación Longitudinal)
+                Perfil de Elevación
               </h3>
               
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] text-gray-500 uppercase tracking-widest font-semibold hidden sm:inline">Direccion:</span>
-                <select 
-                  value={cutDirection}
-                  onChange={(e) => {
-                    const val = e.target.value as CutDirection;
-                    setCutDirection(val);
-                    if (val === 'CUSTOM') setCustomPoints([]);
-                  }}
-                  className="text-xs border border-gray-200 rounded px-2 py-1 text-gray-600 focus:outline-none focus:ring-1 focus:ring-emerald-500 bg-gray-50 cursor-pointer"
-                >
-                  <option value="SW-NE">Diagonal (SurOeste a NorEste)</option>
-                  <option value="NW-SE">Diagonal Inversa (NorOeste a SurEste)</option>
-                  <option value="N-S">Norte a Sur</option>
-                  <option value="W-E">Oeste a Este</option>
-                  <option value="CUSTOM">Modo Libre (Dibujar)</option>
-                </select>
+              {/* Cambio 5: Botones visuales con íconos */}
+              <div className="flex items-center gap-1">
+                {directionButtons.map((btn) => (
+                  <button
+                    key={btn.value}
+                    onClick={() => {
+                      setCutDirection(btn.value);
+                      if (btn.value === 'CUSTOM') setCustomPoints([]);
+                    }}
+                    title={btn.label}
+                    className={`px-2 py-1 rounded text-xs font-medium transition-all cursor-pointer flex items-center gap-1 ${
+                      cutDirection === btn.value
+                        ? 'bg-emerald-600 text-white shadow-sm'
+                        : 'bg-gray-100 text-gray-500 hover:bg-gray-200 hover:text-gray-700'
+                    }`}
+                  >
+                    <span className="text-sm leading-none">{btn.icon}</span>
+                    <span className="hidden sm:inline">{btn.label}</span>
+                  </button>
+                ))}
               </div>
             </div>
 
-            {/* Terrain Statistics Bar */}
+            {/* Cambio 1: Aviso de resolución */}
+            {resolutionWarning && (
+              <div className={`flex items-start gap-2 mb-2 rounded-md px-3 py-2 text-[11px] shrink-0 ${
+                resolutionWarning.severe
+                  ? 'bg-amber-50 border border-amber-200 text-amber-800'
+                  : 'bg-sky-50 border border-sky-200 text-sky-700'
+              }`}>
+                <svg className="w-4 h-4 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+                <span>
+                  Este predio mide ~{resolutionWarning.diagonal}m de diagonal. El modelo de elevación tiene resolución de {DEM_RESOLUTION_M}m
+                  {resolutionWarning.severe
+                    ? ' — los datos son orientativos, no precisos para este lote.'
+                    : ' — la precisión es limitada para lotes de este tamaño.'}
+                </span>
+              </div>
+            )}
+
+            {/* Cambio 3: Color-coding por categoría de pendiente */}
             {slopeStats && profile && !loading && (
-              <div className="flex flex-wrap items-center gap-x-6 gap-y-2 mb-3 bg-emerald-50/50 rounded-lg px-3 py-2 border border-emerald-100 shrink-0">
+              <div className={`flex flex-wrap items-center gap-x-5 gap-y-1.5 mb-2 rounded-lg px-3 py-1.5 border shrink-0 transition-colors ${slopeStats.category.bg} ${slopeStats.category.border}`}>
                 <div className="flex flex-col">
-                  <span className="text-[10px] text-gray-500 font-medium">PENDIENTE APROX.</span>
-                  <span className="text-sm font-bold text-emerald-700">
-                    {slopeStats.pendiente.toFixed(1)}% <span className="text-xs font-medium text-emerald-600/70">({Math.round(Math.atan(slopeStats.pendiente/100) * 180/Math.PI)}°)</span>
+                  <span className="text-[10px] text-gray-500 font-medium uppercase tracking-tight">Pendiente Promedio</span>
+                  <span className={`text-sm font-bold ${slopeStats.category.text}`}>
+                    {slopeStats.pendiente.toFixed(1)}% <span className="opacity-70">({slopeStats.category.label})</span>
                   </span>
                 </div>
-                <div className="w-px h-6 bg-emerald-200/60 hidden sm:block"></div>
+                <div className="w-px h-6 bg-gray-300/30 hidden sm:block"></div>
                 <div className="flex flex-col">
-                  <span className="text-[10px] text-gray-500 font-medium">DESNIVEL</span>
+                  <span className="text-[10px] text-gray-500 font-medium uppercase tracking-tight">Desnivel Total</span>
                   <span className="text-sm font-bold text-gray-700">{slopeStats.desnivel.toFixed(1)} m</span>
                 </div>
-                <div className="w-px h-6 bg-emerald-200/60 hidden sm:block"></div>
+                <div className="w-px h-6 bg-gray-300/30 hidden sm:block"></div>
                 <div className="flex flex-col">
-                  <span className="text-[10px] text-gray-500 font-medium">ELEVACIÓN MÍN.</span>
-                  <span className="text-sm font-bold text-gray-700">{slopeStats.minElev.toFixed(0)} msnm</span>
+                  <span className="text-[10px] text-gray-500 font-medium uppercase tracking-tight">Rango Altura</span>
+                  <span className="text-sm font-bold text-gray-700">{slopeStats.minElev.toFixed(0)} - {slopeStats.maxElev.toFixed(0)} m</span>
                 </div>
-                <div className="w-px h-6 bg-emerald-200/60 hidden sm:block"></div>
-                <div className="flex flex-col">
-                  <span className="text-[10px] text-gray-500 font-medium">ELEVACIÓN MÁX.</span>
-                  <span className="text-sm font-bold text-gray-700">{slopeStats.maxElev.toFixed(0)} msnm</span>
+                
+                {/* Mini Leyenda de Pendientes */}
+                <div className="ml-auto flex items-center gap-2">
+                  <div className="flex h-1.5 w-24 rounded-full overflow-hidden bg-gray-200">
+                    <div className="h-full w-1/5 bg-emerald-500" title="Plano 0-5%"></div>
+                    <div className="h-full w-1/5 bg-yellow-500" title="Suave 5-15%"></div>
+                    <div className="h-full w-1/5 bg-orange-500" title="Moderado 15-30%"></div>
+                    <div className="h-full w-1/5 bg-red-500" title="Fuerte 30-50%"></div>
+                    <div className="h-full w-1/5 bg-purple-500" title="Escarpado >50%"></div>
+                  </div>
+                  <span className="text-[9px] text-gray-400 font-medium">PENDIENTE</span>
                 </div>
               </div>
             )}
@@ -519,14 +779,18 @@ export default function TopografiaModal({ predioId, predioLabel, onClose }: Topo
                     onMouseMove={(e: any) => {
                       if(e && e.activePayload && e.activePayload.length > 0) {
                         setHoverPoint(e.activePayload[0].payload)
+                        setMapHoverIndex(null); // Reset map hover when chart is prioritized
                       }
                     }}
-                    onMouseLeave={() => setHoverPoint(null)}
+                    onMouseLeave={() => {
+                      setHoverPoint(null);
+                      setMapHoverIndex(null);
+                    }}
                   >
                     <defs>
                       <linearGradient id="colorElev" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.6}/>
-                        <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                        <stop offset="5%" stopColor={slopeStats?.category.color || "#10b981"} stopOpacity={0.7}/>
+                        <stop offset="95%" stopColor={slopeStats?.category.color || "#10b981"} stopOpacity={0.1}/>
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
@@ -555,7 +819,15 @@ export default function TopografiaModal({ predioId, predioLabel, onClose }: Topo
                       labelFormatter={(label) => `Distancia: ${label}m`}
                       contentStyle={{borderRadius: '8px', border: '1px solid #f3f4f6', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', fontSize: '12px', zIndex: 3000}}
                     />
-                    <Area type="natural" dataKey="elev" stroke="#059669" strokeWidth={2} fillOpacity={1} fill="url(#colorElev)" />
+                    <Area 
+                      type="natural" 
+                      dataKey="elev" 
+                      stroke={slopeStats?.category.color || "#059669"} 
+                      strokeWidth={2.5} 
+                      fillOpacity={1} 
+                      fill="url(#colorElev)"
+                      activeDot={mapHoverIndex !== null ? { r: 6, fill: '#ef4444', stroke: '#fff', strokeWidth: 2 } : undefined}
+                    />
                   </AreaChart>
                 </ResponsiveContainer>
               ) : null}
