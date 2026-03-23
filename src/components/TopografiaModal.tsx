@@ -266,7 +266,7 @@ export default function TopografiaModal({ predioId, predioLabel, onClose }: Topo
           : grid.features;
 
         // 3. Extraer coordenadas del grid
-        const gridCoords = gridFeatures.map(pt => pt.geometry.coordinates as [number, number]);
+        const gridCoords = gridFeatures.map(pt => pt.geometry.coordinates);
 
         // 4. Llamada batch a Ellipsis
         const elevations = await getElevationsFromEllipsis(gridCoords);

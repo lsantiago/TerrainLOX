@@ -21,7 +21,7 @@ interface EllipsisResponse {
  * @returns Array de elevaciones en metros (puede contener null para puntos fuera de cobertura)
  */
 export async function getElevationsFromEllipsis(
-  coordinates: [number, number][]
+  coordinates: number[][] | [number, number][]
 ): Promise<(number | null)[]> {
   if (!coordinates || coordinates.length === 0) {
     throw new Error('No se proporcionaron coordenadas')
