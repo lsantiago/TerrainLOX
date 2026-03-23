@@ -7,6 +7,7 @@ import { bbox, distance, along, lineString, pointGrid, isolines, lineIntersect }
 import type { Feature, Polygon, MultiPolygon, FeatureCollection, Point } from 'geojson'
 import { createPortal } from 'react-dom'
 import { usePredios } from '../hooks/usePredios'
+import { getElevationsFromEllipsis, interpolateNullElevations } from '../services/elevationService'
 
 export interface TopografiaModalProps {
   predioId: number
@@ -188,115 +189,123 @@ export default function TopografiaModal({ predioId, predioLabel, onClose }: Topo
       }
   }, [featureGeo, cutDirection, customPoints, extendProfile])
 
-  // Consultar elevaciones al mapa en 3D
+  // Consultar elevaciones a Ellipsis Drive (DEM 3m SIGTIERRAS)
   useEffect(() => {
-    if (!coordsData || !mapRef.current || !mapLoaded) return;
-    const map = mapRef.current.getMap();
+    if (!coordsData) return;
 
-    let hasBuilt = false;
-    const buildProfile = () => {
-       const firstElev = map.queryTerrainElevation([coordsData.coords[0][0], coordsData.coords[0][1]]);
-       // Solo calculamos si los tiles DEM ya están en memoria del navegador
-       if (firstElev !== null) {
-          const newProfile = coordsData.coords.map((c, i) => {
-             const elev = map.queryTerrainElevation([c[0], c[1]]);
-             return {
-               dist: coordsData.dists[i],
-               lng: c[0],
-               lat: c[1],
-               elev: elev !== null ? elev : firstElev
-             }
-          });
-          setProfile(newProfile);
+    let cancelled = false;
+
+    const fetchProfile = async () => {
+      try {
+        setLoading(true);
+
+        // Llamada batch a Ellipsis con todas las coordenadas del perfil
+        const rawElevations = await getElevationsFromEllipsis(coordsData.coords);
+
+        if (cancelled) return;
+
+        // Interpolar valores nulos si algunos puntos están fuera de cobertura
+        const elevations = interpolateNullElevations(rawElevations);
+
+        // Construir array de perfil
+        const newProfile: ProfilePoint[] = coordsData.coords.map((c, i) => ({
+          dist: coordsData.dists[i],
+          lng: c[0],
+          lat: c[1],
+          elev: elevations[i]
+        }));
+
+        setProfile(newProfile);
+        setLoading(false);
+        setError(null);
+      } catch (error) {
+        if (!cancelled) {
+          console.error('Error obteniendo perfil de elevación:', error);
+          setError('No se pudo obtener el perfil de elevación. Intenta de nuevo.');
           setLoading(false);
-          hasBuilt = true;
-       }
-    };
-
-    buildProfile();
-    
-    const interval = setInterval(() => {
-      if (!hasBuilt) buildProfile();
-    }, 500);
-    
-    // Refinamos cuando terminan de llegar mapas de max resolución
-    const onIdle = () => { buildProfile() };
-    map.on('idle', onIdle);
-    
-    return () => {
-       clearInterval(interval);
-       map.off('idle', onIdle);
-    };
-  }, [coordsData, mapLoaded]);
-
-  // Novedad: Calcular Malla (Grid) y Puntos Globales Max/Min cuando el mapa esté idle
-  useEffect(() => {
-    if (!featureGeo || !mapRef.current || !mapLoaded) return;
-    const map = mapRef.current.getMap();
-
-    const calculateExtremes = () => {
-      // 1. Crear caja delimitadora (BBox) del predio
-      const box = bbox(featureGeo);
-      
-      // 2. Crear una malla de puntos dentro del BBox (por ej. cada 5 metros o ajustado según tamaño)
-      // Usamos una cantidad razonable para la malla (ej. 10m de separación) para no congelar.
-      // Dependiendo del área, 'cellSide' ajusta. Para un lote grande, 10-15m es ideal.
-      const distDiagonal = distance([box[0], box[1]], [box[2], box[3]], { units: 'kilometers' });
-      const cellSide = Math.max(0.005, distDiagonal / 15); // Dinámico, ej. entre 5m y max div
-      
-      const grid = pointGrid(box, cellSide, { units: 'kilometers', mask: featureGeo });
-
-      if(!grid || grid.features.length === 0) return;
-
-      let highest = { lng: 0, lat: 0, elev: -Infinity };
-      let lowest  = { lng: 0, lat: 0, elev: Infinity };
-      let valid = false;
-
-      // 3. Consultar elevaciones al motor de MapLibre
-      for (const pt of grid.features) {
-        const [lng, lat] = pt.geometry.coordinates;
-        // Sólo considerar si está *estrictamente* dentro del polígono para mayor precisión, aunque mask ya ayuda.
-        // booleanPointInPolygon(pt, featureGeo) -> omitimos por redudancia de la máscara de mask.
-        const elev = map.queryTerrainElevation([lng, lat]);
-        
-        if (elev !== null) {
-          valid = true;
-          pt.properties = { ...pt.properties, elevation: elev };
-          if (elev > highest.elev) highest = { lng, lat, elev };
-          if (elev < lowest.elev) lowest = { lng, lat, elev };
         }
       }
+    };
 
-      if (valid) {
-         setGlobalExtremes({ max: highest, min: lowest, loading: false });
+    fetchProfile();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [coordsData]);
+
+  // Novedad: Calcular Malla (Grid) y Puntos Globales Max/Min usando Ellipsis (3m)
+  useEffect(() => {
+    if (!featureGeo) return;
+
+    let cancelled = false;
+
+    const fetchExtremes = async () => {
+      try {
+        setGlobalExtremes(prev => ({ ...prev, loading: true }));
+
+        // 1. Crear caja delimitadora (BBox) del predio
+        const box = bbox(featureGeo);
+
+        // 2. Crear una malla de puntos dentro del BBox
+        // Con 3m de resolución, podemos usar un grid más denso para mayor precisión
+        const distDiagonal = distance([box[0], box[1]], [box[2], box[3]], { units: 'kilometers' });
+        const cellSide = Math.max(0.005, distDiagonal / 15); // Dinámico, ej. entre 5m y max div
+
+        const grid = pointGrid(box, cellSide, { units: 'kilometers', mask: featureGeo });
+
+        if (!grid || grid.features.length === 0) {
+          setGlobalExtremes({ max: null, min: null, loading: false });
+          return;
+        }
+
+        // Limitar el número de puntos para no exceder límites de la API
+        const MAX_GRID_POINTS = 500;
+        const gridFeatures = grid.features.length > MAX_GRID_POINTS
+          ? grid.features.filter((_, i) => i % Math.ceil(grid.features.length / MAX_GRID_POINTS) === 0)
+          : grid.features;
+
+        // 3. Extraer coordenadas del grid
+        const gridCoords = gridFeatures.map(pt => pt.geometry.coordinates as [number, number]);
+
+        // 4. Llamada batch a Ellipsis
+        const elevations = await getElevationsFromEllipsis(gridCoords);
+
+        if (cancelled) return;
+
+        // 5. Encontrar máximo y mínimo
+        let highest = { lng: 0, lat: 0, elev: -Infinity };
+        let lowest = { lng: 0, lat: 0, elev: Infinity };
+        let valid = false;
+
+        gridCoords.forEach((coord, i) => {
+          const elev = elevations[i];
+          if (elev !== null && !isNaN(elev)) {
+            valid = true;
+            if (elev > highest.elev) highest = { lng: coord[0], lat: coord[1], elev };
+            if (elev < lowest.elev) lowest = { lng: coord[0], lat: coord[1], elev };
+          }
+        });
+
+        if (valid) {
+          setGlobalExtremes({ max: highest, min: lowest, loading: false });
+        } else {
+          setGlobalExtremes({ max: null, min: null, loading: false });
+        }
+      } catch (error) {
+        if (!cancelled) {
+          console.error('Error calculando extremos:', error);
+          setGlobalExtremes({ max: null, min: null, loading: false });
+        }
       }
     };
 
-    // Al igual que el perfil, calculamos cuando los tiles estén cargados en memoria
-    let hasCalculatedExtremes = false;
-    const checkExtremes = () => {
-       if(!hasCalculatedExtremes && map.queryTerrainElevation([bbox(featureGeo)[0], bbox(featureGeo)[1]]) !== null) {
-          setGlobalExtremes(prev => ({ ...prev, loading: true }));
-          calculateExtremes();
-          hasCalculatedExtremes = true;
-       }
-    };
-
-    checkExtremes();
-    const extremeInterval = setInterval(checkExtremes, 1000); // Poll más distanciado
-
-    const onIdleExtremes = () => { 
-      calculateExtremes(); 
-      hasCalculatedExtremes = true; 
-    };
-    map.on('idle', onIdleExtremes);
+    fetchExtremes();
 
     return () => {
-      clearInterval(extremeInterval);
-      map.off('idle', onIdleExtremes);
+      cancelled = true;
     };
-
-  }, [featureGeo, mapLoaded]);
+  }, [featureGeo]);
 
   // Generar curvas de nivel cuando el usuario las active
   useEffect(() => {
@@ -410,17 +419,18 @@ export default function TopografiaModal({ predioId, predioLabel, onClose }: Topo
   }, [cutDirection, customPoints, profile])
 
   // Cambio 1: Aviso de resolución insuficiente
-  const DEM_RESOLUTION_M = 30; // SRTM Terrarium = 30m por píxel
+  const DEM_RESOLUTION_VISUAL = 30; // Terrarium para visualización 3D = 30m por píxel
+  const DEM_RESOLUTION_PROFILE = 3;  // Ellipsis SIGTIERRAS para datos del perfil = 3m por píxel
   const resolutionWarning = useMemo(() => {
     if (!featureGeo) return null;
     const box = bbox(featureGeo);
     const diagonalM = distance([box[0], box[1]], [box[2], box[3]], { units: 'meters' });
-    const pixelsCovered = diagonalM / DEM_RESOLUTION_M;
-    if (pixelsCovered < 4) {
+    const pixelsCovered = diagonalM / DEM_RESOLUTION_PROFILE;
+    if (pixelsCovered < 2) {
       return {
         diagonal: Math.round(diagonalM),
         pixels: pixelsCovered.toFixed(1),
-        severe: pixelsCovered < 2
+        severe: pixelsCovered < 1
       };
     }
     return null;
@@ -779,10 +789,11 @@ export default function TopografiaModal({ predioId, predioLabel, onClose }: Topo
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                 </svg>
                 <span>
-                  Este predio mide ~{resolutionWarning.diagonal}m de diagonal. El modelo de elevación tiene resolución de {DEM_RESOLUTION_M}m
+                  Este predio mide ~{resolutionWarning.diagonal}m de diagonal. El perfil de elevación tiene resolución de {DEM_RESOLUTION_PROFILE}m
                   {resolutionWarning.severe
-                    ? ' — los datos son orientativos, no precisos para este lote.'
-                    : ' — la precisión es limitada para lotes de este tamaño.'}
+                    ? ' — el área es muy pequeña, los datos son orientativos.'
+                    : ' — alta precisión para este lote.'}{' '}
+                  (Visualización 3D: {DEM_RESOLUTION_VISUAL}m)
                 </span>
               </div>
             )}
