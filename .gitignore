@@ -30,3 +30,13 @@ dist-ssr
 .env
 .env.local
 .env.production.local
+
+# Claude Code
+.claude/
+
+# Migration data files (large SQL files)
+migration_batches/
+combined_batches_upload/
+final_upload_chunks/
+*.sql
+!supabase/migrations/*.sql
