@@ -87,7 +87,33 @@ export default function PredioInfo({ predio, isFavorito, onToggleFavorito, onOpe
         })}
       </div>
 
-      {/* 2. Topografía Modal Trigger */}
+      {/* 2. Cédula Catastral Oficial */}
+      {predio.codigo_interno && (
+        <div className="bg-blue-50 rounded-lg p-3 border border-blue-100 flex flex-col items-center">
+          <h3 className="text-xs font-semibold text-blue-800 mb-2 flex items-center justify-center gap-1.5 w-full">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            Cédula Catastral Oficial
+          </h3>
+          <p className="text-[11px] text-gray-500 mb-3 text-center px-2">
+            Ver información oficial completa en el sitio del Municipio de Loja
+          </p>
+          <a
+            href={`https://www.loja.gob.ec/ktastro/code/${predio.codigo_interno}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-md text-xs font-medium bg-blue-600 text-white hover:bg-blue-700 transition-colors shadow-sm cursor-pointer"
+          >
+            <span>Abrir en Sitio Oficial</span>
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+            </svg>
+          </a>
+        </div>
+      )}
+
+      {/* 3. Topografía Modal Trigger */}
       <div className="bg-emerald-50 rounded-lg p-3 border border-emerald-100 flex flex-col items-center">
         <h3 className="text-xs font-semibold text-emerald-800 mb-2 flex items-center justify-center gap-1.5 w-full">
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -106,7 +132,7 @@ export default function PredioInfo({ predio, isFavorito, onToggleFavorito, onOpe
         </button>
       </div>
 
-      {/* 3. Entorno del Predio — accordion */}
+      {/* 4. Entorno del Predio — accordion */}
       <div className="rounded-lg border border-gray-200 overflow-hidden">
         <button
           onClick={() => {
@@ -137,7 +163,7 @@ export default function PredioInfo({ predio, isFavorito, onToggleFavorito, onOpe
         )}
       </div>
 
-      {/* 4. Potencial Edificable */}
+      {/* 5. Potencial Edificable */}
       <button
         onClick={onOpenCalculadora}
         className="w-full flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-colors cursor-pointer bg-sky-50 text-sky-700 border border-sky-200 hover:bg-sky-100"
@@ -148,7 +174,7 @@ export default function PredioInfo({ predio, isFavorito, onToggleFavorito, onOpe
         Ver Potencial Edificable
       </button>
 
-      {/* 5. Favoritos — acción final de decisión */}
+      {/* 6. Favoritos — acción final de decisión */}
       <button
         onClick={onToggleFavorito}
         className={`w-full flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-colors cursor-pointer ${

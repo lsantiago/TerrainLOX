@@ -26,6 +26,7 @@ export interface PredioProperties {
   observacio: string
   ante_gim: string
   clave_rura: string
+  codigo_interno?: number  // Código para acceder a cédula catastral del municipio
 }
 
 export function usePredios() {
