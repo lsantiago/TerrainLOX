@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react'
 import { useAuth } from './hooks/useAuth'
 import { usePredios } from './hooks/usePredios'
 import { useFavoritos, EMPTY_METADATA } from './hooks/useFavoritos'
+import { useValorM2 } from './hooks/useValorM2'
 import type { PredioProperties } from './hooks/usePredios'
 import type { Favorito, FavoritoMetadata } from './hooks/useFavoritos'
 import type { Feature } from 'geojson'
@@ -17,8 +18,10 @@ export default function App() {
   const { user, loading: authLoading, signIn, signUp, signOut } = useAuth()
   const { geojson, loading: prediosLoading, loadByBounds, searchByClave, getPredioById } = usePredios()
   const { favoritos, loading: favLoading, isFavorito, addFavorito, removeFavorito, updateFavorito } = useFavoritos(user?.id)
+  const { barriosValor, getValorColor, colorStops, loadBarriosValor } = useValorM2()
 
   const [selectedPredio, setSelectedPredio] = useState<PredioProperties | null>(null)
+  const [showValorM2, setShowValorM2] = useState(false)
   const [flyTo, setFlyTo] = useState<{ lat: number; lng: number; zoom?: number } | null>(null)
   const [highlightFeature, setHighlightFeature] = useState<Feature | null>(null)
 
@@ -45,6 +48,13 @@ export default function App() {
   const handleBoundsChange = useCallback((minLng: number, minLat: number, maxLng: number, maxLat: number, zoom: number) => {
     loadByBounds(minLng, minLat, maxLng, maxLat, zoom)
   }, [loadByBounds])
+
+  const handleToggleValorM2 = useCallback(() => {
+    setShowValorM2(prev => {
+      if (!prev) loadBarriosValor() // cargar una vez al activar
+      return !prev
+    })
+  }, [loadBarriosValor])
 
   const handleSelectPredio = useCallback((properties: PredioProperties) => {
     setSelectedPredio(properties)
@@ -187,6 +197,11 @@ export default function App() {
             flyTo={flyTo}
             highlightFeature={highlightFeature}
             entornoData={entornoData}
+            showValorM2={showValorM2}
+            onToggleValorM2={handleToggleValorM2}
+            getValorColor={getValorColor}
+            colorStops={colorStops}
+            barriosValor={barriosValor}
           />
         </div>
 

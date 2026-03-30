@@ -6,6 +6,7 @@ import type { PredioProperties } from '../hooks/usePredios'
 import { supabase } from '../lib/supabase'
 import type { EntornoData } from './EntornoPredio'
 import { CATEGORIA_MARKER_COLORS } from './EntornoPredio'
+import type { ColorStop } from '../hooks/useValorM2'
 
 const MIN_ZOOM_POLYGONS = 16
 const canvasRenderer = L.canvas({ padding: 0.5 })
@@ -18,6 +19,11 @@ interface MapProps {
   flyTo: { lat: number; lng: number; zoom?: number } | null
   highlightFeature: Feature | null
   entornoData?: EntornoData | null
+  showValorM2: boolean
+  onToggleValorM2: () => void
+  getValorColor: (valor?: number | null) => string
+  colorStops: ColorStop[]
+  barriosValor: FeatureCollection | null
 }
 
 function BoundsWatcher({ onBoundsChange }: { onBoundsChange: MapProps['onBoundsChange'] }) {
@@ -93,10 +99,14 @@ function GeoJSONLayer({
   geojson,
   selectedPredioId,
   onSelectPredio,
+  showValorM2,
+  getValorColor,
 }: {
   geojson: FeatureCollection | null
   selectedPredioId: number | null
   onSelectPredio: (properties: PredioProperties) => void
+  showValorM2: boolean
+  getValorColor: (valor?: number | null) => string
 }) {
   const map = useMap()
   const layerRef = useRef<L.GeoJSON | null>(null)
@@ -109,10 +119,21 @@ function GeoJSONLayer({
 
     if (!geojson || !geojson.features || geojson.features.length === 0) return
 
+    const baseOpacity = showValorM2 ? 0.6 : 0.15
+
     const layer = L.geoJSON(geojson, {
       renderer: canvasRenderer,
       style: (feature) => {
         const isSelected = feature?.properties?.id === selectedPredioId
+        if (showValorM2) {
+          const fill = getValorColor(feature?.properties?.valor_m2)
+          return {
+            color: isSelected ? '#059669' : '#555',
+            weight: isSelected ? 3 : 1,
+            fillColor: fill,
+            fillOpacity: isSelected ? 0.8 : 0.6,
+          }
+        }
         return {
           color: isSelected ? '#059669' : '#3b82f6',
           weight: isSelected ? 3 : 1,
@@ -123,19 +144,22 @@ function GeoJSONLayer({
       onEachFeature: (feature, featureLayer) => {
         featureLayer.on({
           mouseover: (e: L.LeafletMouseEvent) => {
-            (e.target as L.Path).setStyle({ fillOpacity: 0.45, weight: 2 })
+            (e.target as L.Path).setStyle({ fillOpacity: baseOpacity + 0.2, weight: 2 })
           },
           mouseout: (e: L.LeafletMouseEvent) => {
             if (feature.properties?.id !== selectedPredioId) {
-              (e.target as L.Path).setStyle({ fillOpacity: 0.15, weight: 1 })
+              (e.target as L.Path).setStyle({ fillOpacity: baseOpacity, weight: 1 })
             }
           },
           click: () => {
             onSelectPredio(feature.properties as PredioProperties)
           },
         })
-        if (feature.properties?.clave_cata) {
-          featureLayer.bindTooltip(feature.properties.clave_cata, {
+        const tooltipText = showValorM2 && feature.properties?.valor_m2
+          ? `${feature.properties.clave_cata} · $${feature.properties.valor_m2}/m²`
+          : feature.properties?.clave_cata
+        if (tooltipText) {
+          featureLayer.bindTooltip(tooltipText, {
             sticky: true,
             className: 'text-xs',
           })
@@ -152,7 +176,7 @@ function GeoJSONLayer({
         layerRef.current = null
       }
     }
-  }, [geojson, selectedPredioId, onSelectPredio, map])
+  }, [geojson, selectedPredioId, onSelectPredio, map, showValorM2, getValorColor])
 
   return null
 }
@@ -205,11 +229,12 @@ function hashIndex(str: string, len: number): number {
   return ((h % len) + len) % len
 }
 
-function BoundaryLayer({ visible, rpcName, labelProp, cssClass }: {
+function BoundaryLayer({ visible, rpcName, labelProp, cssClass, subdued }: {
   visible: boolean
   rpcName: string
   labelProp: string
   cssClass: string
+  subdued?: boolean
 }) {
   const map = useMap()
   const layerRef = useRef<L.GeoJSON | null>(null)
@@ -235,6 +260,15 @@ function BoundaryLayer({ visible, rpcName, labelProp, cssClass }: {
         style: (feature) => {
           const label = feature?.properties?.[labelProp] || ''
           const c = BOUNDARY_PALETTE[hashIndex(label, BOUNDARY_PALETTE.length)]
+          if (subdued) {
+            return {
+              color: '#666',
+              weight: 1.5,
+              dashArray: '6 4',
+              fillColor: 'transparent',
+              fillOpacity: 0,
+            }
+          }
           return {
             color: c,
             weight: 2,
@@ -279,7 +313,7 @@ function BoundaryLayer({ visible, rpcName, labelProp, cssClass }: {
         layerRef.current = null
       }
     }
-  }, [visible, map, loaded, rpcName, labelProp, cssClass])
+  }, [visible, map, loaded, rpcName, labelProp, cssClass, subdued])
 
   return null
 }
@@ -437,6 +471,80 @@ function EntornoLayer({ data }: { data: EntornoData | null }) {
   return null
 }
 
+function BarriosValorLayer({ visible, data, getValorColor }: {
+  visible: boolean
+  data: FeatureCollection | null
+  getValorColor: (valor?: number | null) => string
+}) {
+  const map = useMap()
+  const layerRef = useRef<L.GeoJSON | null>(null)
+
+  useEffect(() => {
+    if (layerRef.current) {
+      cleanupLayer(map, layerRef.current)
+      layerRef.current = null
+    }
+
+    if (!visible || !data || !data.features?.length) return
+
+    const layer = L.geoJSON(data, {
+      renderer: canvasRenderer,
+      style: (feature) => {
+        const avg = feature?.properties?.avg_valor_m2
+        return {
+          color: '#555',
+          weight: 1.5,
+          fillColor: getValorColor(avg),
+          fillOpacity: 0.5,
+        }
+      },
+      onEachFeature: (feature, featureLayer) => {
+        const p = feature.properties
+        if (p?.barrio) {
+          featureLayer.bindTooltip(
+            `<strong>${p.barrio}</strong><br/>` +
+            `Promedio: <b>$${p.avg_valor_m2}/m²</b><br/>` +
+            `Rango: $${p.min_valor_m2} – $${p.max_valor_m2}<br/>` +
+            `${p.predios} predios`,
+            { sticky: true, className: 'text-xs' }
+          )
+        }
+      },
+    } as L.GeoJSONOptions)
+
+    layer.addTo(map)
+    layerRef.current = layer
+
+    return () => {
+      if (layerRef.current) {
+        cleanupLayer(map, layerRef.current)
+        layerRef.current = null
+      }
+    }
+  }, [visible, data, map, getValorColor])
+
+  return null
+}
+
+function ValorM2Legend({ visible, colorStops }: { visible: boolean; colorStops: ColorStop[] }) {
+  if (!visible) return null
+
+  return (
+    <div className="absolute bottom-20 sm:bottom-6 left-2 z-[1000] bg-white/90 backdrop-blur-sm shadow-lg rounded-lg px-3 py-2 space-y-1">
+      <p className="font-semibold text-gray-700 text-[11px]">Valor m² (USD)</p>
+      {colorStops.map((stop, i) => (
+        <div key={i} className="flex items-center gap-2">
+          <span
+            className="w-3.5 h-3.5 rounded-sm shrink-0 border border-gray-300"
+            style={{ backgroundColor: stop.color }}
+          />
+          <span className="text-[10px] text-gray-600">{stop.label}</span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 export default function MapView({
   geojson,
   selectedPredioId,
@@ -445,6 +553,11 @@ export default function MapView({
   flyTo,
   highlightFeature,
   entornoData,
+  showValorM2,
+  onToggleValorM2,
+  getValorColor,
+  colorStops,
+  barriosValor,
 }: MapProps) {
   const [showBarrios, setShowBarrios] = useState(false)
   const [showParroquias, setShowParroquias] = useState(true)
@@ -520,6 +633,16 @@ export default function MapView({
         >
           Aptitud
         </button>
+        <button
+          onClick={onToggleValorM2}
+          className={`bg-white shadow-md rounded-lg px-2.5 py-1.5 text-[11px] font-medium transition-colors cursor-pointer border ${
+            showValorM2
+              ? 'border-orange-400 text-orange-700 bg-orange-50'
+              : 'border-gray-300 text-gray-600 hover:bg-gray-50'
+          }`}
+        >
+          Valor m²
+        </button>
       </div>
 
       {/* Aptitud legend with category toggles */}
@@ -557,11 +680,15 @@ export default function MapView({
         geojson={geojson}
         selectedPredioId={selectedPredioId}
         onSelectPredio={onSelectPredio}
+        showValorM2={showValorM2}
+        getValorColor={getValorColor}
       />
 
       <AptitudLayer visible={showAptitud} activeCategories={aptitudCategories} />
-      <BoundaryLayer visible={showBarrios} rpcName="get_limites_barriales_geojson" labelProp="barrio" cssClass="barrio-label" />
-      <BoundaryLayer visible={showParroquias} rpcName="get_limites_parroquias_geojson" labelProp="parroquia" cssClass="parroquia-label" />
+      <BoundaryLayer visible={showBarrios} rpcName="get_limites_barriales_geojson" labelProp="barrio" cssClass="barrio-label" subdued={showValorM2} />
+      <BoundaryLayer visible={showParroquias} rpcName="get_limites_parroquias_geojson" labelProp="parroquia" cssClass="parroquia-label" subdued={showValorM2} />
+      <BarriosValorLayer visible={showValorM2} data={barriosValor} getValorColor={getValorColor} />
+      <ValorM2Legend visible={showValorM2} colorStops={colorStops} />
       <ZoomMessage />
       <BoundsWatcher onBoundsChange={onBoundsChange} />
       <FlyToHandler flyTo={flyTo} />
