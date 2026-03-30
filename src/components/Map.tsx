@@ -478,6 +478,15 @@ function BarriosValorLayer({ visible, data, getValorColor }: {
 }) {
   const map = useMap()
   const layerRef = useRef<L.GeoJSON | null>(null)
+  const [zoom, setZoom] = useState(13)
+
+  useMapEvents({
+    zoomend: () => setZoom(map.getZoom()),
+  })
+  useEffect(() => { setZoom(map.getZoom()) }, [map])
+
+  // Opacity fades from 0.5 at zoom 13 to 0 at zoom 16
+  const fillOpacity = Math.max(0, 0.5 - (zoom - 13) * 0.17)
 
   useEffect(() => {
     if (layerRef.current) {
@@ -485,7 +494,7 @@ function BarriosValorLayer({ visible, data, getValorColor }: {
       layerRef.current = null
     }
 
-    if (!visible || !data || !data.features?.length) return
+    if (!visible || !data || !data.features?.length || fillOpacity <= 0) return
 
     const layer = L.geoJSON(data, {
       renderer: canvasRenderer,
@@ -493,9 +502,9 @@ function BarriosValorLayer({ visible, data, getValorColor }: {
         const avg = feature?.properties?.avg_valor_m2
         return {
           color: '#555',
-          weight: 1.5,
+          weight: Math.max(0.5, 1.5 - (zoom - 13) * 0.3),
           fillColor: getValorColor(avg),
-          fillOpacity: 0.5,
+          fillOpacity,
         }
       },
       onEachFeature: (feature, featureLayer) => {
@@ -521,7 +530,7 @@ function BarriosValorLayer({ visible, data, getValorColor }: {
         layerRef.current = null
       }
     }
-  }, [visible, data, map, getValorColor])
+  }, [visible, data, map, getValorColor, fillOpacity, zoom])
 
   return null
 }
