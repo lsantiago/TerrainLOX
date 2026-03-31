@@ -136,14 +136,15 @@ export default function PredioInfo({ predio, isFavorito, onToggleFavorito, onOpe
   const tipoBadge = tipoPredioLabel(predio.tipo_pred)
 
   // Datos derivados
-  const pctConstruccion = ficha?.area_construccion && ficha?.area_terreno && ficha.area_terreno > 0
-    ? (ficha.area_construccion / ficha.area_terreno) * 100
+  const areaOficial = predio.area_gim || 0
+  const pctConstruccion = ficha?.area_construccion && areaOficial > 0
+    ? (ficha.area_construccion / areaOficial) * 100
     : null
-  const discrepanciaAreas = ficha?.area_terreno && predio.area_grafi
-    ? Math.abs(ficha.area_terreno - predio.area_grafi)
+  const discrepanciaAreas = areaOficial && predio.area_grafi
+    ? Math.abs(areaOficial - predio.area_grafi)
     : null
-  const discrepanciaPct = ficha?.area_terreno && predio.area_grafi && ficha.area_terreno > 0
-    ? (discrepanciaAreas! / ficha.area_terreno) * 100
+  const discrepanciaPct = areaOficial && predio.area_grafi && areaOficial > 0
+    ? (discrepanciaAreas! / areaOficial) * 100
     : null
 
   return (
@@ -248,7 +249,7 @@ export default function PredioInfo({ predio, isFavorito, onToggleFavorito, onOpe
 
             {/* &Aacute;reas comparativas */}
             <div className="space-y-1">
-              <Row label="&Aacute;rea terreno (oficial)" value={ficha.area_terreno !== null ? formatArea(ficha.area_terreno) : null} />
+              {areaOficial > 0 && <Row label="&Aacute;rea terreno (oficial)" value={formatArea(areaOficial)} />}
               <Row label="&Aacute;rea gr&aacute;fica (GIS)" value={predio.area_grafi ? formatArea(predio.area_grafi) : null} />
               {/* Alerta de discrepancia */}
               {discrepanciaPct !== null && discrepanciaPct > 5 && (
@@ -261,7 +262,6 @@ export default function PredioInfo({ predio, isFavorito, onToggleFavorito, onOpe
                   </span>
                 </div>
               )}
-              {predio.area_gim ? <Row label="&Aacute;rea GIM" value={formatArea(predio.area_gim)} /> : null}
               {ficha.area_construccion !== null && ficha.area_construccion > 0 ? (
                 <>
                   <Row label="&Aacute;rea construcci&oacute;n" value={formatArea(ficha.area_construccion)} />
