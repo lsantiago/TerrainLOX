@@ -28,6 +28,9 @@ export interface PredioProperties {
   clave_rura: string
   codigo_interno?: number  // Código para acceder a cédula catastral del municipio
   valor_m2?: number        // Valor por m² del avalúo catastral
+  avaluo_total?: number
+  avaluo_terreno?: number
+  avaluo_construccion?: number
 }
 
 export function usePredios() {

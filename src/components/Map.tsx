@@ -95,6 +95,11 @@ function HighlightLayer({ feature, onSelect }: { feature: Feature | null; onSele
   return null
 }
 
+function formatCompact(value: number): string {
+  if (value >= 1000) return `$${(value / 1000).toFixed(1).replace(/\.0$/, '')}K`
+  return `$${Math.round(value)}`
+}
+
 function GeoJSONLayer({
   geojson,
   selectedPredioId,
@@ -110,7 +115,12 @@ function GeoJSONLayer({
 }) {
   const map = useMap()
   const layerRef = useRef<L.GeoJSON | null>(null)
+  const labelsRef = useRef<L.LayerGroup | null>(null)
+  const [zoom, setZoom] = useState(() => map.getZoom())
 
+  useMapEvents({ zoomend: () => setZoom(map.getZoom()) })
+
+  // Polygon layer
   useEffect(() => {
     if (layerRef.current) {
       map.removeLayer(layerRef.current)
@@ -155,9 +165,16 @@ function GeoJSONLayer({
             onSelectPredio(feature.properties as PredioProperties)
           },
         })
-        const tooltipText = showValorM2 && feature.properties?.valor_m2
-          ? `${feature.properties.clave_cata} · $${feature.properties.valor_m2}/m²`
-          : feature.properties?.clave_cata
+        // Tooltip: at zoom 16-17 show valor_m2 + avalúo on hover when valor toggle active
+        const p = feature.properties
+        let tooltipText: string
+        if (showValorM2 && p?.valor_m2) {
+          const parts = [`$${p.valor_m2}/m²`]
+          if (p.avaluo_total) parts.push(`Avalúo: ${formatCompact(p.avaluo_total)}`)
+          tooltipText = `${p.clave_cata}\n${parts.join(' · ')}`
+        } else {
+          tooltipText = p?.clave_cata ?? ''
+        }
         if (tooltipText) {
           featureLayer.bindTooltip(tooltipText, {
             sticky: true,
@@ -177,6 +194,72 @@ function GeoJSONLayer({
       }
     }
   }, [geojson, selectedPredioId, onSelectPredio, map, showValorM2, getValorColor])
+
+  // Permanent labels at high zoom
+  useEffect(() => {
+    if (labelsRef.current) {
+      map.removeLayer(labelsRef.current)
+      labelsRef.current = null
+    }
+
+    if (!showValorM2 || zoom < 18 || !geojson?.features?.length) return
+
+    const group = L.layerGroup()
+    const bounds = map.getBounds()
+
+    for (const feature of geojson.features) {
+      const p = feature.properties
+      if (!p?.valor_m2) continue
+
+      // Get centroid for label placement
+      const geom = feature.geometry
+      let lat: number, lng: number
+      if (geom.type === 'Polygon') {
+        const coords = geom.coordinates[0]
+        let cx = 0, cy = 0
+        for (const c of coords) { cx += c[0]; cy += c[1] }
+        lng = cx / coords.length
+        lat = cy / coords.length
+      } else if (geom.type === 'MultiPolygon') {
+        const coords = geom.coordinates[0][0]
+        let cx = 0, cy = 0
+        for (const c of coords) { cx += c[0]; cy += c[1] }
+        lng = cx / coords.length
+        lat = cy / coords.length
+      } else continue
+
+      // Skip if outside current view
+      if (!bounds.contains([lat, lng])) continue
+
+      let labelText: string
+      if (zoom >= 19 && p.avaluo_total) {
+        labelText = `$${p.valor_m2}/m²\n${formatCompact(p.avaluo_total)}`
+      } else {
+        labelText = `$${p.valor_m2}`
+      }
+
+      const marker = L.marker([lat, lng], {
+        icon: L.divIcon({
+          className: 'predio-valor-label',
+          html: `<span>${labelText.replace('\n', '<br/>')}</span>`,
+          iconSize: [0, 0],
+          iconAnchor: [0, 0],
+        }),
+        interactive: false,
+      })
+      marker.addTo(group)
+    }
+
+    group.addTo(map)
+    labelsRef.current = group
+
+    return () => {
+      if (labelsRef.current) {
+        map.removeLayer(labelsRef.current)
+        labelsRef.current = null
+      }
+    }
+  }, [geojson, showValorM2, zoom, map])
 
   return null
 }
