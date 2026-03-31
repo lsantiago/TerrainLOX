@@ -10,11 +10,11 @@ export interface ColorStop {
 
 const COLOR_STOPS: ColorStop[] = [
   { min: 0,   color: '#d1d5db', label: 'Sin dato' },
-  { min: 1,   color: '#22c55e', label: '$1 – $100' },
-  { min: 100, color: '#84cc16', label: '$100 – $200' },
-  { min: 200, color: '#eab308', label: '$200 – $350' },
+  { min: 1,   color: '#86efac', label: '$1 – $100' },
+  { min: 100, color: '#facc15', label: '$100 – $200' },
+  { min: 200, color: '#f59e0b', label: '$200 – $350' },
   { min: 350, color: '#f97316', label: '$350 – $500' },
-  { min: 500, color: '#ef4444', label: '$500+' },
+  { min: 500, color: '#dc2626', label: '$500+' },
 ]
 
 export function useValorM2() {
