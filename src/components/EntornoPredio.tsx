@@ -57,9 +57,10 @@ export const CATEGORIA_MARKER_COLORS: Record<string, string> = {
 interface EntornoProps {
   predioId: number
   onDataChange?: (data: EntornoData | null) => void
+  onLocate?: (lat: number, lng: number, label: string) => void
 }
 
-export default function EntornoPredio({ predioId, onDataChange }: EntornoProps) {
+export default function EntornoPredio({ predioId, onDataChange, onLocate }: EntornoProps) {
   const [distancia, setDistancia] = useState(500)
   const [equipamientos, setEquipamientos] = useState<Equipamiento[]>([])
   const [loading, setLoading] = useState(false)
@@ -194,7 +195,11 @@ export default function EntornoPredio({ predioId, onDataChange }: EntornoProps) 
                         </div>
                       )}
                       {items.map(eq => (
-                        <div key={eq.id} className="flex items-start justify-between px-3 py-1.5 border-t border-gray-50 first:border-t-0">
+                        <div
+                          key={eq.id}
+                          onClick={() => onLocate?.(eq.lat, eq.lng, eq.descripcion)}
+                          className={`flex items-start justify-between px-3 py-1.5 border-t border-gray-50 first:border-t-0 ${onLocate ? 'cursor-pointer hover:bg-gray-50 transition-colors' : ''}`}
+                        >
                           <div className="min-w-0 flex-1">
                             <p className="text-xs text-gray-800 truncate">{eq.descripcion}</p>
                             <p className="text-[10px] text-gray-400">
@@ -202,7 +207,15 @@ export default function EntornoPredio({ predioId, onDataChange }: EntornoProps) 
                               {eq.estado === 'Propuesto' && <span className="text-amber-500 ml-1">(Propuesto)</span>}
                             </p>
                           </div>
-                          <span className="text-[10px] text-gray-400 shrink-0 ml-2">{eq.distancia}m</span>
+                          <div className="flex items-center gap-1 shrink-0 ml-2">
+                            <span className="text-[10px] text-gray-400">{eq.distancia}m</span>
+                            {onLocate && (
+                              <svg className="w-3 h-3 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                              </svg>
+                            )}
+                          </div>
                         </div>
                       ))}
                     </div>

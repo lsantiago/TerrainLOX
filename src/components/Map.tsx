@@ -59,8 +59,27 @@ function BoundsWatcher({ onBoundsChange }: { onBoundsChange: MapProps['onBoundsC
 function FlyToHandler({ flyTo }: { flyTo: MapProps['flyTo'] }) {
   const map = useMap()
   useEffect(() => {
-    if (flyTo) {
-      map.flyTo([flyTo.lat, flyTo.lng], flyTo.zoom ?? 17, { duration: 1.5 })
+    if (!flyTo) return
+
+    map.flyTo([flyTo.lat, flyTo.lng], flyTo.zoom ?? 17, { duration: 1.5 })
+
+    // Pulse marker at destination, auto-removes after 3s
+    const pulseIcon = L.divIcon({
+      className: 'pulse-marker',
+      html: '<div class="pulse-ring"></div><div class="pulse-dot"></div>',
+      iconSize: [20, 20],
+      iconAnchor: [10, 10],
+    })
+    const marker = L.marker([flyTo.lat, flyTo.lng], { icon: pulseIcon, interactive: false })
+    marker.addTo(map)
+
+    const timer = setTimeout(() => {
+      map.removeLayer(marker)
+    }, 3000)
+
+    return () => {
+      clearTimeout(timer)
+      if (map.hasLayer(marker)) map.removeLayer(marker)
     }
   }, [flyTo, map])
   return null

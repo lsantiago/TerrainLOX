@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import type { PredioProperties } from '../hooks/usePredios'
+import type { AptitudData } from '../hooks/useZonificacion'
 
 import EntornoPredio from './EntornoPredio'
 import type { EntornoData } from './EntornoPredio'
@@ -12,6 +13,7 @@ interface PredioInfoProps {
   onToggleFavorito: () => void
   onOpenCalculadora: () => void
   onEntornoChange: (data: EntornoData | null) => void
+  onFlyTo?: (lat: number, lng: number, label: string) => void
   onClose: () => void
 }
 
@@ -104,13 +106,14 @@ function tipoPredioLabel(tipo: string | undefined | null): { text: string; cls: 
   return { text: tipo, cls: 'bg-gray-100 text-gray-600' }
 }
 
-export default function PredioInfo({ predio, isFavorito, onToggleFavorito, onOpenCalculadora, onEntornoChange, onClose }: PredioInfoProps) {
+export default function PredioInfo({ predio, isFavorito, onToggleFavorito, onOpenCalculadora, onEntornoChange, onFlyTo, onClose }: PredioInfoProps) {
   const [parroquiaNombre, setParroquiaNombre] = useState<string | null>(null)
   const [ficha, setFicha] = useState<FichaData | null>(null)
   const [fichaLoading, setFichaLoading] = useState(true)
   const [showEntorno, setShowEntorno] = useState(false)
   const [showTopografiaModal, setShowTopografiaModal] = useState(false)
   const [showTecnicos, setShowTecnicos] = useState(false)
+  const [aptitud, setAptitud] = useState<AptitudData | null>(null)
 
   useEffect(() => {
     setParroquiaNombre(null)
@@ -118,6 +121,7 @@ export default function PredioInfo({ predio, isFavorito, onToggleFavorito, onOpe
     setFichaLoading(true)
     setShowEntorno(false)
     setShowTecnicos(false)
+    setAptitud(null)
     onEntornoChange(null)
 
     supabase.rpc('get_parroquia_predio', { p_id: predio.id }).then(({ data }) => {
@@ -127,6 +131,10 @@ export default function PredioInfo({ predio, isFavorito, onToggleFavorito, onOpe
     supabase.rpc('get_ficha_predio', { p_id: predio.id }).then(({ data }) => {
       setFicha(data as FichaData | null)
       setFichaLoading(false)
+    })
+
+    supabase.rpc('get_aptitud_predio', { p_id: predio.id }).then(({ data }) => {
+      setAptitud(data as AptitudData | null)
     })
   }, [predio.id, onEntornoChange])
 
@@ -362,36 +370,50 @@ export default function PredioInfo({ predio, isFavorito, onToggleFavorito, onOpe
         </button>
       </div>
 
-      {/* 6. Entorno del Predio — accordion */}
-      <div className="rounded-lg border border-gray-200 overflow-hidden">
-        <button
-          onClick={() => {
-            const next = !showEntorno
-            setShowEntorno(next)
-            if (!next) onEntornoChange(null)
-          }}
-          className="w-full flex items-center justify-between px-3 py-2.5 bg-gray-50 hover:bg-gray-100 transition-colors cursor-pointer"
-        >
-          <span className="flex items-center gap-2 text-xs font-semibold text-gray-700">
-            <svg className="w-4 h-4 text-teal-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      {/* 6. Entorno del Predio */}
+      {!showEntorno ? (
+        <div className="bg-teal-50 rounded-lg p-3 border border-teal-100 flex flex-col items-center">
+          <h3 className="text-xs font-semibold text-teal-800 mb-2 flex items-center justify-center gap-1.5 w-full">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
             </svg>
-            Ver Entorno del Predio
-          </span>
-          <svg
-            className={`w-3.5 h-3.5 text-gray-400 transition-transform ${showEntorno ? 'rotate-180' : ''}`}
-            fill="none" viewBox="0 0 24 24" stroke="currentColor"
+            An&aacute;lisis de Entorno
+          </h3>
+          <p className="text-[11px] text-gray-500 mb-3 text-center px-2">
+            Busca equipamientos cercanos: educaci&oacute;n, salud, transporte, seguridad y m&aacute;s.
+          </p>
+          <button
+            onClick={() => setShowEntorno(true)}
+            className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-md text-xs font-medium bg-teal-600 text-white hover:bg-teal-700 transition-colors shadow-sm cursor-pointer"
           >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-          </svg>
-        </button>
-        {showEntorno && (
-          <div className="px-3 py-3 border-t border-gray-200">
-            <EntornoPredio predioId={predio.id} onDataChange={onEntornoChange} />
+            Explorar Entorno
+          </button>
+        </div>
+      ) : (
+        <div className="bg-teal-50 rounded-lg border border-teal-100 overflow-hidden">
+          <div className="flex items-center justify-between px-3 py-2">
+            <h3 className="text-xs font-semibold text-teal-800 flex items-center gap-1.5">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+              An&aacute;lisis de Entorno
+            </h3>
+            <button
+              onClick={() => { setShowEntorno(false); onEntornoChange(null) }}
+              className="w-6 h-6 flex items-center justify-center rounded-full text-teal-600 hover:bg-teal-100 cursor-pointer"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
           </div>
-        )}
-      </div>
+          <div className="px-3 pb-3">
+            <EntornoPredio predioId={predio.id} onDataChange={onEntornoChange} onLocate={onFlyTo} />
+          </div>
+        </div>
+      )}
 
       {/* 7. Datos t&eacute;cnicos — accordion colapsado */}
       <div className="rounded-lg border border-gray-200 overflow-hidden">
@@ -428,15 +450,55 @@ export default function PredioInfo({ predio, isFavorito, onToggleFavorito, onOpe
       </div>
 
       {/* 8. Potencial Edificable */}
-      <button
-        onClick={onOpenCalculadora}
-        className="w-full flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-colors cursor-pointer bg-sky-50 text-sky-700 border border-sky-200 hover:bg-sky-100"
-      >
-        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-        </svg>
-        Ver Potencial Edificable
-      </button>
+      <div className="bg-sky-50 rounded-lg p-3 border border-sky-100 flex flex-col items-center">
+        <h3 className="text-xs font-semibold text-sky-800 mb-2 flex items-center justify-center gap-1.5 w-full">
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+          </svg>
+          Potencial Edificable
+        </h3>
+        <p className="text-[11px] text-gray-500 mb-2 text-center px-2">
+          Zonificaci&oacute;n, usos del suelo, retiros y coeficientes de edificabilidad.
+        </p>
+        {/* Aptitud alert preview */}
+        {aptitud?.aptitud && aptitud.aptitud.toLowerCase() !== 'apto' && (
+          <div className={`w-full rounded-md px-2.5 py-1.5 mb-2 flex items-center gap-2 ${
+            aptitud.aptitud.toLowerCase().includes('no apto')
+              ? 'bg-red-100 border border-red-200'
+              : aptitud.aptitud.toLowerCase().includes('extremas')
+                ? 'bg-orange-100 border border-orange-200'
+                : 'bg-amber-100 border border-amber-200'
+          }`}>
+            <svg className={`w-4 h-4 shrink-0 ${
+              aptitud.aptitud.toLowerCase().includes('no apto')
+                ? 'text-red-600'
+                : aptitud.aptitud.toLowerCase().includes('extremas')
+                  ? 'text-orange-600'
+                  : 'text-amber-600'
+            }`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            <div>
+              <p className={`text-[11px] font-semibold ${
+                aptitud.aptitud.toLowerCase().includes('no apto')
+                  ? 'text-red-700'
+                  : aptitud.aptitud.toLowerCase().includes('extremas')
+                    ? 'text-orange-700'
+                    : 'text-amber-700'
+              }`}>{aptitud.aptitud}</p>
+              {aptitud.amenazas && (
+                <p className="text-[10px] text-gray-600 mt-0.5">{aptitud.amenazas}</p>
+              )}
+            </div>
+          </div>
+        )}
+        <button
+          onClick={onOpenCalculadora}
+          className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-md text-xs font-medium bg-sky-600 text-white hover:bg-sky-700 transition-colors shadow-sm cursor-pointer"
+        >
+          Ver Detalle Completo
+        </button>
+      </div>
 
       {/* Modales locales */}
       {showTopografiaModal && (
