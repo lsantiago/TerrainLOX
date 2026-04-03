@@ -110,7 +110,6 @@ export default function PredioInfo({ predio, isFavorito, onToggleFavorito, onOpe
   const [fichaLoading, setFichaLoading] = useState(true)
   const [showEntorno, setShowEntorno] = useState(false)
   const [showTopografiaModal, setShowTopografiaModal] = useState(false)
-  const [showPropietario, setShowPropietario] = useState(false)
   const [showTecnicos, setShowTecnicos] = useState(false)
 
   useEffect(() => {
@@ -118,7 +117,6 @@ export default function PredioInfo({ predio, isFavorito, onToggleFavorito, onOpe
     setFicha(null)
     setFichaLoading(true)
     setShowEntorno(false)
-    setShowPropietario(false)
     setShowTecnicos(false)
     onEntornoChange(null)
 
@@ -196,23 +194,62 @@ export default function PredioInfo({ predio, isFavorito, onToggleFavorito, onOpe
                 title="Ver c&eacute;dula catastral oficial"
                 className="text-blue-500 hover:text-blue-700 transition-colors"
               >
-                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                 </svg>
               </a>
             )}
           </span>
         </div>
-        <Row label="Parroquia" value={parroquia} />
-        <Row label="Barrio" value={predio.barrio} />
-        {ficha?.direccion && <Row label="Direcci&oacute;n" value={ficha.direccion} />}
-        <Row label="Zona" value={predio.zona} />
-        <Row label="Sector" value={predio.sector} />
-        <Row label="Manzana" value={predio.manzana} />
-        <Row label="Lote" value={predio.lote} />
+        <div className={`grid ${ficha?.direccion ? 'grid-cols-3' : 'grid-cols-2'} gap-1 pt-1`}>
+          {[
+            { label: 'Parroquia', value: parroquia },
+            { label: 'Barrio', value: predio.barrio },
+            ...(ficha?.direccion ? [{ label: 'Direcci\u00f3n', value: ficha.direccion }] : []),
+          ].map(({ label, value }) => (
+            <div key={label} className="flex flex-col items-center">
+              <span className="text-[11px] font-semibold text-gray-800 text-center leading-tight">{value || '-'}</span>
+              <span className="text-[9px] text-gray-400 border-t border-gray-300 mt-0.5 pt-0.5 w-full text-center">{label}</span>
+            </div>
+          ))}
+        </div>
+        <div className="grid grid-cols-4 gap-1 pt-1">
+          {[
+            { label: 'Zona', value: predio.zona },
+            { label: 'Sector', value: predio.sector },
+            { label: 'Manzana', value: predio.manzana },
+            { label: 'Lote', value: predio.lote },
+          ].map(({ label, value }) => (
+            <div key={label} className="flex flex-col items-center">
+              <span className="text-sm font-bold text-gray-800">{value || '-'}</span>
+              <span className="text-[9px] text-gray-400 border-t border-gray-300 mt-0.5 pt-0.5 w-full text-center">{label}</span>
+            </div>
+          ))}
+        </div>
       </div>
 
-      {/* 2. Aval&uacute;o Catastral */}
+      {/* 2. Propietario */}
+      {ficha && ficha.propietario_nombres && (() => {
+        const nombres = ficha.propietario_nombres || ''
+        const apellidos = ficha.propietario_apellidos && ficha.propietario_apellidos !== nombres ? ficha.propietario_apellidos : ''
+        const fullName = [nombres, apellidos].filter(Boolean).join(' ')
+        return (
+          <div className="flex items-start gap-2.5 bg-slate-50 rounded-lg p-3 border border-slate-200">
+            <svg className="w-5 h-5 text-slate-500 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+            </svg>
+            <div className="min-w-0">
+              <p className="text-xs font-semibold text-slate-800 leading-tight">{fullName}</p>
+              {ficha.propietario_cedula && (
+                <p className="text-[11px] text-slate-500 mt-0.5">CI: {ficha.propietario_cedula}</p>
+              )}
+            </div>
+          </div>
+        )
+      })()}
+
+      {/* 3. Aval&uacute;o Catastral */}
       <div className="space-y-2">
         <SectionHeader>Aval&uacute;o Catastral</SectionHeader>
         {fichaLoading ? <Skeleton /> : ficha ? (
@@ -305,39 +342,6 @@ export default function PredioInfo({ predio, isFavorito, onToggleFavorito, onOpe
         </div>
       )}
 
-      {/* 4. Propietario — accordion colapsado */}
-      {ficha && ficha.propietario_nombres && (
-        <div className="rounded-lg border border-gray-200 overflow-hidden">
-          <button
-            onClick={() => setShowPropietario(v => !v)}
-            className="w-full flex items-center justify-between px-3 py-2.5 bg-gray-50 hover:bg-gray-100 transition-colors cursor-pointer"
-          >
-            <span className="flex items-center gap-2 text-xs font-semibold text-gray-700">
-              <svg className="w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-              </svg>
-              Propietario
-            </span>
-            <svg
-              className={`w-3.5 h-3.5 text-gray-400 transition-transform ${showPropietario ? 'rotate-180' : ''}`}
-              fill="none" viewBox="0 0 24 24" stroke="currentColor"
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-            </svg>
-          </button>
-          {showPropietario && (
-            <div className="px-3 py-2 border-t border-gray-200 space-y-1">
-              <Row label="Nombre" value={
-                [ficha.propietario_nombres, ficha.propietario_apellidos !== ficha.propietario_nombres ? ficha.propietario_apellidos : null]
-                  .filter(Boolean).join(' ')
-              } />
-              {ficha.propietario_cedula && (
-                <Row label="C&eacute;dula" value={ficha.propietario_cedula} />
-              )}
-            </div>
-          )}
-        </div>
-      )}
 
       {/* 5. Topograf&iacute;a Modal Trigger */}
       <div className="bg-emerald-50 rounded-lg p-3 border border-emerald-100 flex flex-col items-center">
