@@ -618,6 +618,82 @@ function BarriosValorLayer({ visible, data, getValorColor }: {
   return null
 }
 
+const ELLIPSIS_WFS_URL = 'https://api.ellipsis-drive.com/v3/ogc/wfs/be70031f-3f4e-4c6a-8de8-d9565359c4bc'
+const ELLIPSIS_TOKEN = 'epat_bpI06vrcoxSRHZKXC6ckQSM23nK1kh8QSPf4XoMJ1OQ5X6XXfz4oMyp2n58SnqLf'
+const ELLIPSIS_LAYER = 'layerId_0ed5501a-4e21-4788-82d8-c2044d57614d'
+
+function MovimientosLaderaLayer({ visible }: { visible: boolean }) {
+  const map = useMap()
+  const layerRef = useRef<L.GeoJSON | null>(null)
+  const dataRef = useRef<FeatureCollection | null>(null)
+  const [loaded, setLoaded] = useState(false)
+
+  useEffect(() => {
+    if (!visible) {
+      if (layerRef.current) {
+        cleanupLayer(map, layerRef.current)
+        layerRef.current = null
+      }
+      return
+    }
+
+    const show = (fc: FeatureCollection) => {
+      if (layerRef.current) {
+        cleanupLayer(map, layerRef.current)
+      }
+      const layer = L.geoJSON(fc, {
+        renderer: canvasRenderer,
+        style: () => ({
+          color: '#dc2626',
+          weight: 1.5,
+          fillColor: '#ef4444',
+          fillOpacity: 0.3,
+        }),
+        onEachFeature: (feature, featureLayer) => {
+          const p = feature.properties
+          const parts: string[] = []
+          if (p?.tipo) parts.push(`<strong>${p.tipo}</strong>`)
+          if (p?.area) parts.push(`Área: ${Number(p.area).toLocaleString('es-EC', { maximumFractionDigits: 1 })} m²`)
+          if (parts.length) {
+            featureLayer.bindTooltip(parts.join('<br/>'), { sticky: true, className: 'text-xs' })
+          }
+        },
+      } as L.GeoJSONOptions)
+      layer.addTo(map)
+      layerRef.current = layer
+    }
+
+    if (dataRef.current) {
+      show(dataRef.current)
+      return
+    }
+
+    if (!loaded) {
+      const url = `${ELLIPSIS_WFS_URL}?service=WFS&version=2.0.0&request=GetFeature&typeNames=${ELLIPSIS_LAYER}&outputFormat=application/json&token=${ELLIPSIS_TOKEN}`
+      fetch(url)
+        .then(res => res.json())
+        .then((data: FeatureCollection) => {
+          dataRef.current = data
+          show(data)
+          setLoaded(true)
+        })
+        .catch(err => {
+          console.error('Error cargando movimientos de ladera:', err)
+          setLoaded(true)
+        })
+    }
+
+    return () => {
+      if (layerRef.current) {
+        cleanupLayer(map, layerRef.current)
+        layerRef.current = null
+      }
+    }
+  }, [visible, map, loaded])
+
+  return null
+}
+
 function ValorM2Legend({ visible, colorStops }: { visible: boolean; colorStops: ColorStop[] }) {
   if (!visible) return null
 
@@ -654,6 +730,7 @@ export default function MapView({
   const [showBarrios, setShowBarrios] = useState(false)
   const [showParroquias, setShowParroquias] = useState(true)
   const [showAptitud, setShowAptitud] = useState(false)
+  const [showMovimientos, setShowMovimientos] = useState(false)
   const [aptitudCategories, setAptitudCategories] = useState<Record<string, boolean>>(
     () => Object.fromEntries(APTITUD_CATEGORIES.map(c => [c.key, true]))
   )
@@ -735,6 +812,16 @@ export default function MapView({
         >
           Valor m²
         </button>
+        <button
+          onClick={() => setShowMovimientos(v => !v)}
+          className={`bg-white shadow-md rounded-lg px-2.5 py-1.5 text-[11px] font-medium transition-colors cursor-pointer border ${
+            showMovimientos
+              ? 'border-red-400 text-red-700 bg-red-50'
+              : 'border-gray-300 text-gray-600 hover:bg-gray-50'
+          }`}
+        >
+          Deslizamientos
+        </button>
       </div>
 
       {/* Aptitud legend with category toggles */}
@@ -779,6 +866,7 @@ export default function MapView({
       <AptitudLayer visible={showAptitud} activeCategories={aptitudCategories} />
       <BoundaryLayer visible={showBarrios} rpcName="get_limites_barriales_geojson" labelProp="barrio" cssClass="barrio-label" subdued={showValorM2} />
       <BoundaryLayer visible={showParroquias} rpcName="get_limites_parroquias_geojson" labelProp="parroquia" cssClass="parroquia-label" subdued={showValorM2} />
+      <MovimientosLaderaLayer visible={showMovimientos} />
       <BarriosValorLayer visible={showValorM2} data={barriosValor} getValorColor={getValorColor} />
       <ValorM2Legend visible={showValorM2} colorStops={colorStops} />
       <ZoomMessage />
