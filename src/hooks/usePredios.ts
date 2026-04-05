@@ -31,6 +31,8 @@ export interface PredioProperties {
   avaluo_total?: number
   avaluo_terreno?: number
   avaluo_construccion?: number
+  _lat?: number            // Centroide calculado al clic (no viene de BD)
+  _lng?: number
 }
 
 export function usePredios() {
