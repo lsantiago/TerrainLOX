@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { Favorito } from '../hooks/useFavoritos'
+import type { PredioCompartido } from '../hooks/useCompartidos'
 
 interface FavoritosProps {
   favoritos: Favorito[]
@@ -8,6 +9,9 @@ interface FavoritosProps {
   onLocate: (predioId: number) => void
   onRemove: (predioId: number) => void
   onEdit: (fav: Favorito) => void
+  recibidos?: PredioCompartido[]
+  noVistos?: number
+  onMarcarVisto?: (id: string) => void
 }
 
 const estadoStyle: Record<string, string> = {
@@ -164,11 +168,12 @@ function PhotoGallery({ fotos, onClose }: { fotos: string[]; onClose: () => void
   )
 }
 
-export default function Favoritos({ favoritos, loading, onLocate, onRemove, onEdit }: FavoritosProps) {
+export default function Favoritos({ favoritos, loading, onLocate, onRemove, onEdit, recibidos = [], noVistos = 0, onMarcarVisto }: FavoritosProps) {
   const [compareIds, setCompareIds] = useState<Set<string>>(new Set())
   const [showCompare, setShowCompare] = useState(false)
   const [galleryFotos, setGalleryFotos] = useState<string[] | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<{ predioId: number; label: string } | null>(null)
+  const [tab, setTab] = useState<'favoritos' | 'compartidos'>('favoritos')
 
   const toggleCompare = (id: string) => {
     setCompareIds(prev => {
@@ -183,6 +188,83 @@ export default function Favoritos({ favoritos, loading, onLocate, onRemove, onEd
 
   return (
     <div className="p-4">
+      {/* Tabs */}
+      <div className="flex gap-1 mb-4 bg-gray-100 rounded-lg p-1">
+        <button
+          onClick={() => setTab('favoritos')}
+          className={`flex-1 text-xs font-medium py-1.5 rounded-md transition-colors cursor-pointer ${tab === 'favoritos' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+        >
+          Mis Favoritos {favoritos.length > 0 && <span className="text-gray-400">({favoritos.length})</span>}
+        </button>
+        <button
+          onClick={() => setTab('compartidos')}
+          className={`flex-1 relative text-xs font-medium py-1.5 rounded-md transition-colors cursor-pointer ${tab === 'compartidos' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+        >
+          Compartidos
+          {noVistos > 0 && (
+            <span className="ml-1 inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold rounded-full bg-blue-500 text-white">{noVistos}</span>
+          )}
+        </button>
+      </div>
+
+      {/* Tab: Compartidos conmigo */}
+      {tab === 'compartidos' && (
+        <div className="space-y-2">
+          {recibidos.length === 0 ? (
+            <div className="text-center py-8">
+              <svg className="w-10 h-10 text-gray-300 mx-auto mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+              </svg>
+              <p className="text-xs text-gray-400">Nadie ha compartido predios contigo todav&iacute;a.</p>
+            </div>
+          ) : recibidos.map(r => (
+            <div key={r.id} className={`rounded-lg p-3 border transition-colors ${r.visto ? 'bg-gray-50 border-gray-100' : 'bg-blue-50 border-blue-100'}`}>
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold text-gray-800 truncate">
+                    {r.predio?.clave_cata || `Predio #${r.predio_id}`}
+                  </p>
+                  {r.predio?.barrio && (
+                    <p className="text-[10px] text-gray-500">{r.predio.barrio}{r.predio.parroquia ? ` · ${r.predio.parroquia}` : ''}</p>
+                  )}
+                  <p className="text-[10px] text-gray-400 mt-0.5">
+                    {new Date(r.created_at).toLocaleDateString('es-EC', { day: '2-digit', month: 'short', year: 'numeric' })}
+                    {!r.visto && <span className="ml-1.5 text-blue-600 font-semibold">Nuevo</span>}
+                  </p>
+                  {r.nota && (
+                    <p className="text-[11px] text-gray-600 italic mt-1">"{r.nota}"</p>
+                  )}
+                </div>
+                <div className="flex gap-1 shrink-0">
+                  <button
+                    onClick={() => { onLocate(r.predio_id); if (!r.visto && onMarcarVisto) onMarcarVisto(r.id) }}
+                    title="Ver en mapa"
+                    className="p-1.5 rounded-md bg-emerald-100 text-emerald-700 hover:bg-emerald-200 transition-colors cursor-pointer"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                  </button>
+                  {!r.visto && onMarcarVisto && (
+                    <button
+                      onClick={() => onMarcarVisto(r.id)}
+                      title="Marcar como visto"
+                      className="p-1.5 rounded-md bg-blue-100 text-blue-600 hover:bg-blue-200 transition-colors cursor-pointer"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {tab === 'favoritos' && <>
       {loading && <p className="text-xs text-gray-400">Cargando...</p>}
 
       {!loading && favoritos.length === 0 && (
@@ -384,6 +466,7 @@ export default function Favoritos({ favoritos, loading, onLocate, onRemove, onEd
         </div>,
         document.body
       )}
+      </>}
     </div>
   )
 }

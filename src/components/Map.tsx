@@ -137,9 +137,21 @@ function GeoJSONLayer({
   const labelsRef = useRef<L.LayerGroup | null>(null)
   const [zoom, setZoom] = useState(() => map.getZoom())
 
+  // Refs para que los callbacks y props siempre usen el valor más reciente
+  // sin necesitar reconstruir la capa
+  const onSelectPredioRef = useRef(onSelectPredio)
+  onSelectPredioRef.current = onSelectPredio
+  const showValorM2Ref = useRef(showValorM2)
+  showValorM2Ref.current = showValorM2
+  const getValorColorRef = useRef(getValorColor)
+  getValorColorRef.current = getValorColor
+  const selectedPredioIdRef = useRef(selectedPredioId)
+  selectedPredioIdRef.current = selectedPredioId
+
   useMapEvents({ zoomend: () => setZoom(map.getZoom()) })
 
-  // Polygon layer
+  // Construir la capa solo cuando cambia el dataset (geojson)
+  // El estilo y handlers siempre leen de refs, nunca quedan stale
   useEffect(() => {
     if (layerRef.current) {
       map.removeLayer(layerRef.current)
@@ -148,14 +160,13 @@ function GeoJSONLayer({
 
     if (!geojson || !geojson.features || geojson.features.length === 0) return
 
-    const baseOpacity = showValorM2 ? 0.6 : 0.15
-
     const layer = L.geoJSON(geojson, {
       renderer: canvasRenderer,
       style: (feature) => {
-        const isSelected = feature?.properties?.id === selectedPredioId
-        if (showValorM2) {
-          const fill = getValorColor(feature?.properties?.valor_m2)
+        const isSelected = feature?.properties?.id === selectedPredioIdRef.current
+        const valorM2 = showValorM2Ref.current
+        if (valorM2) {
+          const fill = getValorColorRef.current(feature?.properties?.valor_m2)
           return {
             color: isSelected ? '#059669' : '#555',
             weight: isSelected ? 3 : 1,
@@ -173,29 +184,41 @@ function GeoJSONLayer({
       onEachFeature: (feature, featureLayer) => {
         featureLayer.on({
           mouseover: (e: L.LeafletMouseEvent) => {
-            (e.target as L.Path).setStyle({ fillOpacity: baseOpacity + 0.2, weight: 2 })
+            const base = showValorM2Ref.current ? 0.6 : 0.15
+            ;(e.target as L.Path).setStyle({ fillOpacity: base + 0.2, weight: 2 })
           },
           mouseout: (e: L.LeafletMouseEvent) => {
-            if (feature.properties?.id !== selectedPredioId) {
-              (e.target as L.Path).setStyle({ fillOpacity: baseOpacity, weight: 1 })
+            if (feature.properties?.id !== selectedPredioIdRef.current) {
+              const base = showValorM2Ref.current ? 0.6 : 0.15
+              ;(e.target as L.Path).setStyle({ fillOpacity: base, weight: 1 })
             }
           },
           click: () => {
-            onSelectPredio(feature.properties as PredioProperties)
+            const geom = feature.geometry
+            let _lat: number | undefined, _lng: number | undefined
+            if (geom.type === 'Polygon') {
+              const coords = geom.coordinates[0]
+              let cx = 0, cy = 0
+              for (const c of coords) { cx += c[0]; cy += c[1] }
+              _lng = cx / coords.length; _lat = cy / coords.length
+            } else if (geom.type === 'MultiPolygon') {
+              const coords = geom.coordinates[0][0]
+              let cx = 0, cy = 0
+              for (const c of coords) { cx += c[0]; cy += c[1] }
+              _lng = cx / coords.length; _lat = cy / coords.length
+            }
+            onSelectPredioRef.current({ ...feature.properties, _lat, _lng } as PredioProperties)
           },
         })
-        // Tooltip: at zoom 16-17 show valor_m2 + avalúo on hover when valor toggle active
         const p = feature.properties
-        let tooltipText: string
-        if (showValorM2 && p?.valor_m2) {
-          const parts = [`$${p.valor_m2}/m²`]
-          if (p.avaluo_total) parts.push(`Avalúo: ${formatCompact(p.avaluo_total)}`)
-          tooltipText = `${p.clave_cata}\n${parts.join(' · ')}`
-        } else {
-          tooltipText = p?.clave_cata ?? ''
-        }
-        if (tooltipText) {
-          featureLayer.bindTooltip(tooltipText, {
+        // El tooltip se actualiza dinámicamente al abrir (via openTooltip) —
+        // para simplificar mostramos siempre clave + valor si existe
+        const parts: string[] = []
+        if (p?.clave_cata) parts.push(p.clave_cata)
+        if (p?.valor_m2) parts.push(`$${p.valor_m2}/m²`)
+        if (p?.avaluo_total) parts.push(`Avalúo: ${formatCompact(p.avaluo_total)}`)
+        if (parts.length) {
+          featureLayer.bindTooltip(parts.join(' · '), {
             sticky: true,
             className: 'text-xs',
           })
@@ -212,7 +235,30 @@ function GeoJSONLayer({
         layerRef.current = null
       }
     }
-  }, [geojson, selectedPredioId, onSelectPredio, map, showValorM2, getValorColor])
+  }, [geojson, map])
+
+  // Actualizar estilos sin reconstruir la capa cuando cambian showValorM2 o selectedPredioId
+  useEffect(() => {
+    if (!layerRef.current) return
+    layerRef.current.setStyle((feature) => {
+      const isSelected = feature?.properties?.id === selectedPredioId
+      if (showValorM2) {
+        const fill = getValorColor(feature?.properties?.valor_m2)
+        return {
+          color: isSelected ? '#059669' : '#555',
+          weight: isSelected ? 3 : 1,
+          fillColor: fill,
+          fillOpacity: isSelected ? 0.8 : 0.6,
+        }
+      }
+      return {
+        color: isSelected ? '#059669' : '#3b82f6',
+        weight: isSelected ? 3 : 1,
+        fillColor: isSelected ? '#10b981' : '#60a5fa',
+        fillOpacity: isSelected ? 0.4 : 0.15,
+      }
+    })
+  }, [showValorM2, getValorColor, selectedPredioId])
 
   // Permanent labels at high zoom
   useEffect(() => {
@@ -641,6 +687,26 @@ const ELLIPSIS_WFS_URL = 'https://api.ellipsis-drive.com/v3/ogc/wfs/be70031f-3f4
 const ELLIPSIS_TOKEN = 'epat_bpI06vrcoxSRHZKXC6ckQSM23nK1kh8QSPf4XoMJ1OQ5X6XXfz4oMyp2n58SnqLf'
 const ELLIPSIS_LAYER = 'layerId_0ed5501a-4e21-4788-82d8-c2044d57614d'
 
+// New WFS for Slopes (Pendientes)
+const PENDIENTES_WFS_ROOT = 'https://api.ellipsis-drive.com/v3/ogc/wfs/1ae9d6a5-c824-456b-b2f9-a903bcbbe91e'
+const PENDIENTES_TOKEN = 'epat_h5sBGBXxU3QnWv06jotT0cbvw9BvZOqiIn8hXgcf9PdTgznUP1fZuJKybq2qCHqL'
+const PENDIENTES_LAYER = 'layerId_8a89c52f-4a18-44c0-ac40-60cad59392a3'
+
+const PENDIENTES_SCALE = [
+  { min: 0, max: 5, color: '#4d5d28', label: 'Plano (0-5°)' },
+  { min: 5, max: 15, color: '#a39d2c', label: 'Suave (5-15°)' },
+  { min: 15, max: 25, color: '#dc932e', label: 'Moderado (15-25°)' },
+  { min: 25, max: 35, color: '#dc6b2e', label: 'Fuerte (25-35°)' },
+  { min: 35, max: 100, color: '#d83c2e', label: 'Escarpado (35°+)' },
+]
+
+function getPendienteColor(val: number): string {
+  for (const stop of PENDIENTES_SCALE) {
+    if (val >= stop.min && val < stop.max) return stop.color
+  }
+  return val >= 100 ? '#d83c2e' : '#cbd5e1'
+}
+
 function MovimientosLaderaLayer({ visible }: { visible: boolean }) {
   const map = useMap()
   const layerRef = useRef<L.GeoJSON | null>(null)
@@ -713,6 +779,114 @@ function MovimientosLaderaLayer({ visible }: { visible: boolean }) {
   return null
 }
 
+function PendientesLayer({ visible, onPendienteClick, onPendienteData }: {
+  visible: boolean
+  onPendienteClick: (clave_cata: string, pend_mean: number) => void
+  onPendienteData: (clave_cata: string, pend_mean: number) => void
+}) {
+  const map = useMap()
+  const layerRef = useRef<L.GeoJSON | null>(null)
+  const rendererRef = useRef<L.Canvas | null>(null)
+  const loadedIdsRef = useRef<Set<string>>(new Set())
+  // Callback refs — evitan stale closures sin necesidad de reconstruir la capa
+  const onPendienteClickRef = useRef(onPendienteClick)
+  onPendienteClickRef.current = onPendienteClick
+  const onPendienteDataRef = useRef(onPendienteData)
+  onPendienteDataRef.current = onPendienteData
+
+  const fetchAndAdd = useCallback(() => {
+    if (!layerRef.current) return
+    if (map.getZoom() < MIN_ZOOM_POLYGONS) return
+
+    const bounds = map.getBounds()
+    const bbox = `${bounds.getSouth()},${bounds.getWest()},${bounds.getNorth()},${bounds.getEast()}`
+    const url = `${PENDIENTES_WFS_ROOT}?service=WFS&version=2.0.0&request=GetFeature&typeNames=${PENDIENTES_LAYER}&outputFormat=application/json&token=${PENDIENTES_TOKEN}&bbox=${bbox}&count=10000`
+
+    fetch(url)
+      .then(res => res.json())
+      .then((data: FeatureCollection) => {
+        if (!layerRef.current || !data?.features) return
+        // Solo agregar features nuevas — nunca destruir la capa
+        const newFeatures = data.features.filter(f => f.id && !loadedIdsRef.current.has(String(f.id)))
+        newFeatures.forEach(f => {
+          loadedIdsRef.current.add(String(f.id))
+          if (f.properties?.clave_cata && f.properties?.pend_mean !== undefined) {
+            onPendienteDataRef.current(f.properties.clave_cata, f.properties.pend_mean)
+          }
+          layerRef.current!.addData(f as any)
+        })
+      })
+      .catch(err => console.error('Error cargando pendientes:', err))
+  }, [map])
+
+  useEffect(() => {
+    if (!visible) {
+      if (layerRef.current) {
+        cleanupLayer(map, layerRef.current)
+        layerRef.current = null
+      }
+      if (rendererRef.current) {
+        map.removeLayer(rendererRef.current)
+        rendererRef.current = null
+      }
+      loadedIdsRef.current = new Set()
+      return
+    }
+
+    // Pane dedicado con z-index superior al overlayPane (400)
+    if (!map.getPane('pendientesPane')) {
+      const pane = map.createPane('pendientesPane')
+      pane.style.zIndex = '450'
+    }
+    const pendientesRenderer = L.canvas({ padding: 0.5, pane: 'pendientesPane' } as any)
+    rendererRef.current = pendientesRenderer
+
+    // Crear la capa una sola vez — nunca se reconstruye
+    const layer = L.geoJSON(undefined, {
+      renderer: pendientesRenderer,
+      pane: 'pendientesPane',
+      style: (feature) => {
+        const val = feature?.properties?.pend_mean || 0
+        return { color: '#fff', weight: 0.5, fillColor: getPendienteColor(val), fillOpacity: 0.7 }
+      },
+      onEachFeature: (feature, featureLayer) => {
+        const p = feature.properties
+        if (p) {
+          featureLayer.bindTooltip(
+            `<div class="p-1 space-y-0.5">` +
+              `<div class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full" style="background:${getPendienteColor(p.pend_mean)}"></span>` +
+              `<strong class="text-sm">Pendiente: ${Number(p.pend_mean).toFixed(2)}°</strong></div>` +
+              `<div class="text-[10px] text-gray-500 border-t border-gray-100 mt-1 pt-1">${p.barrio || 'Sin barrio'} · Clave: ${p.clave_cata}</div>` +
+            `</div>`,
+            { sticky: true, offset: [10, 0] }
+          )
+          featureLayer.on('click', () => onPendienteClickRef.current(p.clave_cata, p.pend_mean))
+        }
+      },
+    } as L.GeoJSONOptions)
+    layer.addTo(map)
+    layerRef.current = layer
+
+    fetchAndAdd()
+    map.on('moveend', fetchAndAdd)
+
+    return () => {
+      map.off('moveend', fetchAndAdd)
+      cleanupLayer(map, layer)
+      layerRef.current = null
+      loadedIdsRef.current = new Set()
+      // Eliminar el renderer del mapa para que su <canvas> desaparezca del DOM.
+      // Sin esto, el canvas vacío a z=450 bloquea todos los clics sobre los predios.
+      if (rendererRef.current) {
+        map.removeLayer(rendererRef.current)
+        rendererRef.current = null
+      }
+    }
+  }, [visible, map, fetchAndAdd])
+
+  return null
+}
+
 function ValorM2Legend({ visible, colorStops }: { visible: boolean; colorStops: ColorStop[] }) {
   if (!visible) return null
 
@@ -750,6 +924,7 @@ export default function MapView({
   const [showParroquias, setShowParroquias] = useState(true)
   const [showAptitud, setShowAptitud] = useState(false)
   const [showMovimientos, setShowMovimientos] = useState(false)
+  const [showPendientes, setShowPendientes] = useState(false)
   const [aptitudCategories, setAptitudCategories] = useState<Record<string, boolean>>(
     () => Object.fromEntries(APTITUD_CATEGORIES.map(c => [c.key, true]))
   )
@@ -757,6 +932,40 @@ export default function MapView({
   const toggleAptitudCategory = useCallback((key: string) => {
     setAptitudCategories(prev => ({ ...prev, [key]: !prev[key] }))
   }, [])
+
+  // Lookup de pendientes por clave_cata — se llena incrementalmente conforme carga la capa
+  const pendientesByClaveRef = useRef<Record<string, number>>({})
+  const handlePendienteData = useCallback((clave_cata: string, pend_mean: number) => {
+    pendientesByClaveRef.current[clave_cata] = pend_mean
+  }, [])
+
+  // Selector unificado: siempre agrega pend_mean si está disponible, sin importar qué capa generó el clic
+  const selectPredioWithPendiente = useCallback((properties: PredioProperties) => {
+    const pend_mean = pendientesByClaveRef.current[properties.clave_cata]
+    onSelectPredio(pend_mean !== undefined ? { ...properties, pend_mean } as any : properties)
+  }, [onSelectPredio])
+
+  // Cola para clics sobre pendientes cuando los predios aún no han cargado
+  const pendingClaveRef = useRef<string | null>(null)
+
+  const handlePendienteClick = useCallback((clave_cata: string, _pend_mean: number) => {
+    const feature = geojson?.features?.find(f => f.properties?.clave_cata === clave_cata)
+    if (feature?.properties) {
+      selectPredioWithPendiente(feature.properties as PredioProperties)
+    } else {
+      pendingClaveRef.current = clave_cata
+    }
+  }, [geojson, selectPredioWithPendiente])
+
+  // Procesar clic pendiente cuando el geojson se actualiza
+  useEffect(() => {
+    if (!pendingClaveRef.current || !geojson?.features?.length) return
+    const feature = geojson.features.find(f => f.properties?.clave_cata === pendingClaveRef.current)
+    if (feature?.properties) {
+      pendingClaveRef.current = null
+      selectPredioWithPendiente(feature.properties as PredioProperties)
+    }
+  }, [geojson, selectPredioWithPendiente])
 
   return (
     <MapContainer
@@ -841,6 +1050,16 @@ export default function MapView({
         >
           Deslizamientos
         </button>
+        <button
+          onClick={() => setShowPendientes(v => !v)}
+          className={`bg-white shadow-md rounded-lg px-2.5 py-1.5 text-[11px] font-medium transition-colors cursor-pointer border ${
+            showPendientes
+              ? 'border-amber-500 text-amber-700 bg-amber-50'
+              : 'border-gray-300 text-gray-600 hover:bg-gray-50'
+          }`}
+        >
+          Pendientes
+        </button>
       </div>
 
       {/* Aptitud legend with category toggles */}
@@ -874,10 +1093,26 @@ export default function MapView({
         </div>
       )}
 
+      {/* Pendientes Legend */}
+      {showPendientes && (
+        <div className="absolute bottom-20 sm:bottom-6 right-2 z-[1000] bg-white/90 backdrop-blur-sm shadow-lg rounded-lg px-3 py-2 space-y-1">
+          <p className="font-semibold text-gray-700 text-[11px]">Rango de Pendientes</p>
+          {PENDIENTES_SCALE.map((stop, i) => (
+            <div key={i} className="flex items-center gap-2">
+              <span
+                className="w-3.5 h-3.5 rounded-sm shrink-0 border border-gray-300"
+                style={{ backgroundColor: stop.color }}
+              />
+              <span className="text-[10px] text-gray-600 font-medium">{stop.label}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
       <GeoJSONLayer
         geojson={geojson}
         selectedPredioId={selectedPredioId}
-        onSelectPredio={onSelectPredio}
+        onSelectPredio={selectPredioWithPendiente}
         showValorM2={showValorM2}
         getValorColor={getValorColor}
       />
@@ -886,6 +1121,7 @@ export default function MapView({
       <BoundaryLayer visible={showBarrios} rpcName="get_limites_barriales_geojson" labelProp="barrio" cssClass="barrio-label" subdued={showValorM2} />
       <BoundaryLayer visible={showParroquias} rpcName="get_limites_parroquias_geojson" labelProp="parroquia" cssClass="parroquia-label" subdued={showValorM2} />
       <MovimientosLaderaLayer visible={showMovimientos} />
+      <PendientesLayer visible={showPendientes} onPendienteClick={handlePendienteClick} onPendienteData={handlePendienteData} />
       <BarriosValorLayer visible={showValorM2} data={barriosValor} getValorColor={getValorColor} />
       <ValorM2Legend visible={showValorM2} colorStops={colorStops} />
       <ZoomMessage />

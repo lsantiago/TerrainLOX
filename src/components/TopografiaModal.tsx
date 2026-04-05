@@ -12,6 +12,7 @@ import { getElevationsFromEllipsis, interpolateNullElevations } from '../service
 export interface TopografiaModalProps {
   predioId: number
   predioLabel: string
+  pendMean?: number
   onClose: () => void
 }
 
@@ -56,7 +57,7 @@ const mapStyle = {
   }
 };
 
-export default function TopografiaModal({ predioId, predioLabel, onClose }: TopografiaModalProps) {
+export default function TopografiaModal({ predioId, predioLabel, pendMean, onClose }: TopografiaModalProps) {
   const [profile, setProfile] = useState<ProfilePoint[] | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -797,6 +798,27 @@ export default function TopografiaModal({ predioId, predioLabel, onClose }: Topo
                 </span>
               </div>
             )}
+
+            {/* Pendiente catastral precalculada (Ellipsis Drive WFS) */}
+            {pendMean !== undefined && (() => {
+              const cat = pendMean >= 35 ? { label: 'Escarpado', color: '#d83c2e', bg: 'bg-red-50', text: 'text-red-700', border: 'border-red-200' }
+                : pendMean >= 25 ? { label: 'Fuerte', color: '#dc6b2e', bg: 'bg-orange-50', text: 'text-orange-700', border: 'border-orange-200' }
+                : pendMean >= 15 ? { label: 'Moderado', color: '#dc932e', bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200' }
+                : pendMean >= 5  ? { label: 'Suave', color: '#a39d2c', bg: 'bg-yellow-50', text: 'text-yellow-700', border: 'border-yellow-200' }
+                : { label: 'Plano', color: '#4d5d28', bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200' }
+              return (
+                <div className={`flex items-center gap-4 mb-2 rounded-lg px-3 py-1.5 border shrink-0 ${cat.bg} ${cat.border}`}>
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: cat.color }} />
+                    <div className="flex flex-col">
+                      <span className="text-[10px] text-gray-500 font-medium uppercase tracking-tight">Pendiente Catastral</span>
+                      <span className={`text-sm font-bold ${cat.text}`}>{pendMean.toFixed(1)}&deg; <span className="opacity-70 text-xs">({cat.label})</span></span>
+                    </div>
+                  </div>
+                  <span className="text-[10px] text-gray-400 italic">Valor precalculado del dataset catastral</span>
+                </div>
+              )
+            })()}
 
             {/* Cambio 3: Color-coding por categoría de pendiente */}
             {slopeStats && profile && !loading && (

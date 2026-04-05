@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react'
 import { useAuth } from './hooks/useAuth'
 import { usePredios } from './hooks/usePredios'
 import { useFavoritos, EMPTY_METADATA } from './hooks/useFavoritos'
+import { useCompartidos } from './hooks/useCompartidos'
 import { useValorM2 } from './hooks/useValorM2'
 import type { PredioProperties } from './hooks/usePredios'
 import type { Favorito, FavoritoMetadata } from './hooks/useFavoritos'
@@ -18,6 +19,7 @@ export default function App() {
   const { user, loading: authLoading, signIn, signUp, signOut } = useAuth()
   const { geojson, loading: prediosLoading, loadByBounds, searchByClave, getPredioById } = usePredios()
   const { favoritos, loading: favLoading, isFavorito, addFavorito, removeFavorito, updateFavorito } = useFavoritos(user?.id)
+  const { recibidos, noVistos, compartir, marcarVisto } = useCompartidos(user?.id, user?.email)
   const { barriosValor, getValorColor, colorStops, loadBarriosValor } = useValorM2()
 
   const [selectedPredio, setSelectedPredio] = useState<PredioProperties | null>(null)
@@ -75,6 +77,23 @@ export default function App() {
   const handleLocateFavorito = useCallback(async (predioId: number) => {
     const feature = await getPredioById(predioId)
     if (feature) {
+      // Calcular centroide para el link de Google Maps
+      const geom = feature.geometry as any
+      let _lat: number | undefined, _lng: number | undefined
+      if (geom?.type === 'Polygon') {
+        const coords = geom.coordinates[0]
+        let cx = 0, cy = 0
+        for (const c of coords) { cx += c[0]; cy += c[1] }
+        _lng = cx / coords.length; _lat = cy / coords.length
+      } else if (geom?.type === 'MultiPolygon') {
+        const coords = geom.coordinates[0][0]
+        let cx = 0, cy = 0
+        for (const c of coords) { cx += c[0]; cy += c[1] }
+        _lng = cx / coords.length; _lat = cy / coords.length
+      }
+      if (_lat !== undefined && _lng !== undefined) {
+        feature.properties = { ...feature.properties, _lat, _lng }
+      }
       setHighlightFeature(feature)
     }
   }, [getPredioById])
@@ -150,6 +169,10 @@ export default function App() {
     setEntornoData(data)
   }, [])
 
+  const handleCompartir = useCallback(async (predioId: number, toEmail: string, nota: string) => {
+    return compartir(predioId, toEmail, nota)
+  }, [compartir])
+
   if (authLoading) {
     return (
       <div className="fixed inset-0 flex items-center justify-center bg-gray-50">
@@ -184,6 +207,10 @@ export default function App() {
             onOpenCalculadora={handleOpenCalculadora}
             onEntornoChange={handleEntornoChange}
             onClearSelection={handleClearSelection}
+            onCompartir={handleCompartir}
+            recibidos={recibidos}
+            noVistos={noVistos}
+            onMarcarVisto={marcarVisto}
           />
         </div>
 

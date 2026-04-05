@@ -6,6 +6,7 @@ import type { AptitudData } from '../hooks/useZonificacion'
 import EntornoPredio from './EntornoPredio'
 import type { EntornoData } from './EntornoPredio'
 import TopografiaModal from './TopografiaModal'
+import CompartirModal from './CompartirModal'
 
 interface PredioInfoProps {
   predio: PredioProperties
@@ -14,6 +15,7 @@ interface PredioInfoProps {
   onOpenCalculadora: () => void
   onEntornoChange: (data: EntornoData | null) => void
   onFlyTo?: (lat: number, lng: number, label: string) => void
+  onCompartir?: (predioId: number, toEmail: string, nota: string) => Promise<{ error: string | null }>
   onClose: () => void
 }
 
@@ -106,14 +108,18 @@ function tipoPredioLabel(tipo: string | undefined | null): { text: string; cls: 
   return { text: tipo, cls: 'bg-gray-100 text-gray-600' }
 }
 
-export default function PredioInfo({ predio, isFavorito, onToggleFavorito, onOpenCalculadora, onEntornoChange, onFlyTo, onClose }: PredioInfoProps) {
+export default function PredioInfo({ predio, isFavorito, onToggleFavorito, onOpenCalculadora, onEntornoChange, onFlyTo, onCompartir, onClose }: PredioInfoProps) {
   const [parroquiaNombre, setParroquiaNombre] = useState<string | null>(null)
   const [ficha, setFicha] = useState<FichaData | null>(null)
   const [fichaLoading, setFichaLoading] = useState(true)
   const [showEntorno, setShowEntorno] = useState(false)
   const [showTopografiaModal, setShowTopografiaModal] = useState(false)
+  const [showCompartirModal, setShowCompartirModal] = useState(false)
   const [showTecnicos, setShowTecnicos] = useState(false)
   const [aptitud, setAptitud] = useState<AptitudData | null>(null)
+  const [pendMean, setPendMean] = useState<number | null>(null)
+  const [pendLoading, setPendLoading] = useState(false)
+  const [barrioAvg, setBarrioAvg] = useState<number | null>(null)
 
   useEffect(() => {
     setParroquiaNombre(null)
@@ -122,6 +128,8 @@ export default function PredioInfo({ predio, isFavorito, onToggleFavorito, onOpe
     setShowEntorno(false)
     setShowTecnicos(false)
     setAptitud(null)
+    setPendMean(null)
+    setBarrioAvg(null)
     onEntornoChange(null)
 
     supabase.rpc('get_parroquia_predio', { p_id: predio.id }).then(({ data }) => {
@@ -133,10 +141,57 @@ export default function PredioInfo({ predio, isFavorito, onToggleFavorito, onOpe
       setFichaLoading(false)
     })
 
+    if (predio.barrio) {
+      supabase
+        .from('barrios_valor_m2')
+        .select('avg_valor_m2')
+        .ilike('barrio', predio.barrio)
+        .maybeSingle()
+        .then(({ data }) => {
+          if (data?.avg_valor_m2) setBarrioAvg(data.avg_valor_m2)
+        })
+    }
+
     supabase.rpc('get_aptitud_predio', { p_id: predio.id }).then(({ data }) => {
       setAptitud(data as AptitudData | null)
     })
-  }, [predio.id, onEntornoChange])
+
+
+    // Si ya viene en los props (clic desde capa de pendientes) usarlo directamente,
+    // si no, fetchear del WFS por bbox del predio
+    const existingPend = (predio as any).pend_mean
+    if (existingPend !== undefined) {
+      setPendMean(Number(existingPend))
+    } else {
+      setPendLoading(true)
+      supabase.rpc('get_predio_geojson', { p_id: predio.id }).then(({ data: feat }) => {
+        if (!feat) { setPendLoading(false); return }
+        // Calcular bbox manualmente sin importar turf en este componente
+        const geom = (feat as any)?.geometry
+        const ring = geom?.type === 'Polygon' ? geom.coordinates[0]
+          : geom?.type === 'MultiPolygon' ? geom.coordinates[0][0] : null
+        if (!ring) { setPendLoading(false); return }
+        let minLng = Infinity, minLat = Infinity, maxLng = -Infinity, maxLat = -Infinity
+        for (const [lng, lat] of ring) {
+          if (lng < minLng) minLng = lng; if (lng > maxLng) maxLng = lng
+          if (lat < minLat) minLat = lat; if (lat > maxLat) maxLat = lat
+        }
+        const bboxStr = `${minLat},${minLng},${maxLat},${maxLng}`
+        const url = `https://api.ellipsis-drive.com/v3/ogc/wfs/1ae9d6a5-c824-456b-b2f9-a903bcbbe91e?service=WFS&version=2.0.0&request=GetFeature&typeNames=layerId_8a89c52f-4a18-44c0-ac40-60cad59392a3&outputFormat=application/json&token=epat_h5sBGBXxU3QnWv06jotT0cbvw9BvZOqiIn8hXgcf9PdTgznUP1fZuJKybq2qCHqL&bbox=${bboxStr}&count=20`
+        fetch(url)
+          .then(r => r.json())
+          .then(wfs => {
+            const match = wfs?.features?.find((f: any) => f.properties?.clave_cata === predio.clave_cata)
+              ?? wfs?.features?.[0]
+            if (match?.properties?.pend_mean !== undefined) {
+              setPendMean(Number(match.properties.pend_mean))
+            }
+          })
+          .catch(() => {/* pendiente es dato opcional, fallo silencioso */})
+          .finally(() => setPendLoading(false))
+      })
+    }
+  }, [predio.id, predio.clave_cata, onEntornoChange])
 
   const parroquia = parroquiaNombre || predio.parroquia
   const tipoBadge = tipoPredioLabel(predio.tipo_pred)
@@ -173,6 +228,17 @@ export default function PredioInfo({ predio, isFavorito, onToggleFavorito, onOpe
                 d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
             </svg>
           </button>
+          {onCompartir && (
+            <button
+              onClick={() => setShowCompartirModal(true)}
+              title="Compartir predio"
+              className="w-7 h-7 flex items-center justify-center rounded-full text-gray-400 hover:text-blue-500 hover:bg-blue-50 transition-colors cursor-pointer"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+              </svg>
+            </button>
+          )}
           <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 cursor-pointer">
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -205,6 +271,19 @@ export default function PredioInfo({ predio, isFavorito, onToggleFavorito, onOpe
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                   <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                </svg>
+              </a>
+            )}
+            {predio._lat !== undefined && predio._lng !== undefined && (
+              <a
+                href={`https://www.google.com/maps?q=${predio._lat.toFixed(6)},${predio._lng.toFixed(6)}&z=18`}
+                target="_blank"
+                rel="noopener noreferrer"
+                title="Ver en Google Maps"
+                className="text-red-400 hover:text-red-600 transition-colors"
+              >
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
                 </svg>
               </a>
             )}
@@ -290,6 +369,27 @@ export default function PredioInfo({ predio, isFavorito, onToggleFavorito, onOpe
                   </span>
                 </div>
               </div>
+              {/* Comparativa valor_m2 vs. promedio del barrio */}
+              {ficha.valor_m2 && barrioAvg && (() => {
+                const diff = ficha.valor_m2! - barrioAvg
+                const pct = (diff / barrioAvg) * 100
+                const above = pct >= 0
+                return (
+                  <div className="mt-2.5 pt-2 border-t border-amber-100">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-[11px] text-amber-700">vs. promedio del barrio</span>
+                      <span className={`text-[11px] font-bold px-1.5 py-0.5 rounded-full ${above ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
+                        {above ? '+' : ''}{pct.toFixed(1)}%
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 text-[11px] text-amber-600">
+                      <span>Este predio: <span className="font-semibold text-amber-800">${ficha.valor_m2}/m²</span></span>
+                      <span className="text-amber-300">·</span>
+                      <span>Barrio: <span className="font-semibold text-amber-800">${barrioAvg}/m²</span></span>
+                    </div>
+                  </div>
+                )
+              })()}
             </div>
 
             {/* &Aacute;reas comparativas */}
@@ -359,8 +459,37 @@ export default function PredioInfo({ predio, isFavorito, onToggleFavorito, onOpe
           </svg>
           An&aacute;lisis Topogr&aacute;fico Exhaustivo
         </h3>
+
+        {/* Pendiente media catastral */}
+        {pendLoading ? (
+          <div className="w-full flex items-center gap-2 mb-3 animate-pulse">
+            <div className="h-3 bg-emerald-200 rounded w-1/2" />
+            <div className="h-3 bg-emerald-200 rounded w-1/4" />
+          </div>
+        ) : pendMean !== null ? (() => {
+          const cat = pendMean >= 35 ? { label: 'Escarpado', color: '#d83c2e', bg: 'bg-red-50', text: 'text-red-700', border: 'border-red-200' }
+            : pendMean >= 25 ? { label: 'Fuerte', color: '#dc6b2e', bg: 'bg-orange-50', text: 'text-orange-700', border: 'border-orange-200' }
+            : pendMean >= 15 ? { label: 'Moderado', color: '#dc932e', bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200' }
+            : pendMean >= 5  ? { label: 'Suave', color: '#a39d2c', bg: 'bg-yellow-50', text: 'text-yellow-700', border: 'border-yellow-200' }
+            : { label: 'Plano', color: '#4d5d28', bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200' }
+          return (
+            <div className={`w-full flex items-center justify-between mb-3 px-2.5 py-1.5 rounded-md border ${cat.bg} ${cat.border}`}>
+              <div className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: cat.color }} />
+                <span className="text-[11px] text-gray-600">Pendiente media catastral</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className={`text-xs font-bold ${cat.text}`}>{pendMean.toFixed(1)}&deg;</span>
+                <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${cat.bg} ${cat.text} border ${cat.border}`}>{cat.label}</span>
+              </div>
+            </div>
+          )
+        })() : (
+          <p className="text-[11px] text-gray-400 mb-3 text-center">Sin datos de pendiente disponibles</p>
+        )}
+
         <p className="text-[11px] text-gray-500 mb-3 text-center px-2">
-          Haga clic para cargar el modelo 3D con c&aacute;lculos de pendiente y altimetr&iacute;a en vivo.
+          Modelo 3D con perfil de elevaci&oacute;n y altimetr&iacute;a de alta precisi&oacute;n.
         </p>
         <button
           onClick={() => setShowTopografiaModal(true)}
@@ -505,7 +634,16 @@ export default function PredioInfo({ predio, isFavorito, onToggleFavorito, onOpe
         <TopografiaModal
           predioId={predio.id}
           predioLabel={predio.clave_cata || `Predio #${predio.id}`}
+          pendMean={pendMean ?? undefined}
           onClose={() => setShowTopografiaModal(false)}
+        />
+      )}
+      {showCompartirModal && onCompartir && (
+        <CompartirModal
+          predioId={predio.id}
+          claveCata={predio.clave_cata}
+          onCompartir={(toEmail, nota) => onCompartir(predio.id, toEmail, nota)}
+          onClose={() => setShowCompartirModal(false)}
         />
       )}
     </div>

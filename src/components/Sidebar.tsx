@@ -4,6 +4,7 @@ import PredioInfo from './PredioInfo'
 import Favoritos from './Favoritos'
 import type { PredioProperties } from '../hooks/usePredios'
 import type { Favorito } from '../hooks/useFavoritos'
+import type { PredioCompartido } from '../hooks/useCompartidos'
 import type { EntornoData } from './EntornoPredio'
 
 type Panel = 'search' | 'favoritos' | 'info' | null
@@ -25,6 +26,10 @@ interface SidebarProps {
   onEntornoChange: (data: EntornoData | null) => void
   onClearSelection: () => void
   mobile?: boolean
+  onCompartir?: (predioId: number, toEmail: string, nota: string) => Promise<{ error: string | null }>
+  recibidos?: PredioCompartido[]
+  noVistos?: number
+  onMarcarVisto?: (id: string) => void
 }
 
 const SWIPE_THRESHOLD = 80
@@ -141,6 +146,10 @@ export default function Sidebar({
   onEntornoChange,
   onClearSelection,
   mobile,
+  onCompartir,
+  recibidos,
+  noVistos,
+  onMarcarVisto,
 }: SidebarProps) {
   const [panel, setPanel] = useState<Panel>(mobile ? null : 'search')
   // Track which panel was active before opening Info (to return on close)
@@ -233,6 +242,7 @@ export default function Sidebar({
                 onOpenCalculadora={onOpenCalculadora}
                 onEntornoChange={onEntornoChange}
                 onFlyTo={onSearchLocation}
+                onCompartir={onCompartir}
                 onClose={closeInfoPanel}
               />
             )}
@@ -243,6 +253,9 @@ export default function Sidebar({
                 onLocate={handleLocateMobile}
                 onRemove={onRemoveFavorito}
                 onEdit={onEditFavorito}
+                recibidos={recibidos}
+                noVistos={noVistos}
+                onMarcarVisto={onMarcarVisto}
               />
             )}
           </MobilePanel>
@@ -285,6 +298,11 @@ export default function Sidebar({
               {favoritos.length}
             </span>
           )}
+          {(noVistos ?? 0) > 0 && (
+            <span className="ml-1 inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold rounded-full bg-blue-500 text-white">
+              {noVistos}
+            </span>
+          )}
         </button>
         {selectedPredio && (
           <button
@@ -316,6 +334,7 @@ export default function Sidebar({
             onOpenCalculadora={onOpenCalculadora}
             onEntornoChange={onEntornoChange}
             onFlyTo={onSearchLocation}
+            onCompartir={onCompartir}
             onClose={() => { onClearSelection(); setPanel(prevPanelRef.current || 'search') }}
           />
         )}
@@ -326,6 +345,9 @@ export default function Sidebar({
             onLocate={(id) => { prevPanelRef.current = 'favoritos'; onLocateFavorito(id) }}
             onRemove={onRemoveFavorito}
             onEdit={onEditFavorito}
+            recibidos={recibidos}
+            noVistos={noVistos}
+            onMarcarVisto={onMarcarVisto}
           />
         )}
       </div>
