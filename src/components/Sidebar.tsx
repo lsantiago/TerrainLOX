@@ -232,6 +232,7 @@ export default function Sidebar({
                 onToggleFavorito={onToggleFavorito}
                 onOpenCalculadora={onOpenCalculadora}
                 onEntornoChange={onEntornoChange}
+                onFlyTo={onSearchLocation}
                 onClose={closeInfoPanel}
               />
             )}
@@ -314,6 +315,7 @@ export default function Sidebar({
             onToggleFavorito={onToggleFavorito}
             onOpenCalculadora={onOpenCalculadora}
             onEntornoChange={onEntornoChange}
+            onFlyTo={onSearchLocation}
             onClose={() => { onClearSelection(); setPanel(prevPanelRef.current || 'search') }}
           />
         )}
